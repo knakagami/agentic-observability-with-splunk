@@ -1,15 +1,14 @@
 """
 payment-service v1.1 — BUG VERSION
-Deploy this on the feature/v1.1-payment-bug branch.
 
-Bug: ZeroDivisionError when payment.amount is a whole number (e.g. 100, 200).
-     decimal_part = 0  →  payment.amount / decimal_part  →  ZeroDivisionError
+Bug: KeyError when payment.amount is a whole number.
+     decimal_part = 0  →  tier_key = 0  →  DISCOUNT_RATES[0]  →  KeyError: 0
 
 Load generator sends 60% integer amounts → ~60% error rate after deploy.
 """
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
 from opentelemetry import trace
 from pythonjsonlogger import jsonlogger
@@ -39,6 +38,13 @@ logger = logging.getLogger("payment-service")
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="payment-service")
 
+# Discount rate table keyed by decimal tier (1–9).
+# Bug: key 0 is missing — integer amounts produce tier_key=0 and raise KeyError.
+DISCOUNT_RATES = {
+    1: 0.01, 2: 0.02, 3: 0.03, 4: 0.04, 5: 0.05,
+    6: 0.06, 7: 0.07, 8: 0.08, 9: 0.09,
+}
+
 
 class PaymentRequest(BaseModel):
     payment_id: str
@@ -60,24 +66,22 @@ def health():
 def process_payment(payment: PaymentRequest):
     with tracer.start_as_current_span("process_payment") as span:
         span.set_attribute("payment.id", payment.payment_id)
-        span.set_attribute("payment.amount", payment.amount)
 
         logger.info("Processing payment", extra={
             "payment_id": payment.payment_id,
             "amount": payment.amount,
         })
 
-        # ── v1.1 BUG: ZeroDivisionError for whole-number amounts ─────────────
-        # Intended: compute a "decimal discount" for amounts with cents.
-        # Bug: when amount is a whole number, decimal_part == 0 → division by zero.
+        # ── v1.1 BUG: KeyError for whole-number amounts ───────────────────────
+        # Intended: look up a discount rate based on the decimal part of amount.
+        # Bug: integer amounts have decimal_part=0, giving tier_key=0,
+        #      which is absent from DISCOUNT_RATES → KeyError: 0
         decimal_part = payment.amount - int(payment.amount)
-        discount_rate = payment.amount / decimal_part  # BUG: ZeroDivisionError when decimal_part == 0
+        tier_key = round(decimal_part * 10)          # 0 for integers, 1–9 for decimals
+        discount_rate = DISCOUNT_RATES[tier_key]     # BUG: KeyError: 0 when tier_key == 0
 
         fee = round(payment.amount * 0.03, 2)
         total = round(payment.amount + fee - discount_rate, 2)
-
-        span.set_attribute("payment.fee", fee)
-        span.set_attribute("payment.total", total)
 
         logger.info("Payment processed", extra={
             "payment_id": payment.payment_id,

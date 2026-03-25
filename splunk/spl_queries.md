@@ -17,13 +17,13 @@ index=demo_logs sourcetype="demo:app"
 
 ---
 
-## 2. スタックトレース抽出 — ZeroDivisionError の発見
+## 2. スタックトレース抽出 — KeyError の発見
 
 ```spl
 index=demo_logs sourcetype="demo:app"
   level=ERROR
   earliest=-15m
-| search message="*ZeroDivisionError*" OR message="*division by zero*" OR message="*decimal_part*"
+| search message="*KeyError*" OR message="*DISCOUNT_RATES*" OR message="*tier_key*"
 | table _time, trace_id, span_id, service.name, message
 | sort -_time
 ```

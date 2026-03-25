@@ -57,7 +57,6 @@ async def create_order(req: OrderRequest):
     with tracer.start_as_current_span("create_order") as span:
         span.set_attribute("order.id", req.order_id)
         span.set_attribute("order.item", req.item)
-        span.set_attribute("order.amount", req.amount)
 
         logger.info("Order received", extra={
             "order_id": req.order_id,

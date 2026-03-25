@@ -44,6 +44,11 @@ jobs:
             sudo kubectl apply -f k8s/payment-service/
             sudo kubectl apply -f k8s/load-generator/
 
+            echo "=== Restarting deployments to pick up new images ==="
+            sudo kubectl rollout restart deployment/order-service   -n agentic-o11y-mcp
+            sudo kubectl rollout restart deployment/payment-service -n agentic-o11y-mcp
+            sudo kubectl rollout restart deployment/load-generator  -n agentic-o11y-mcp
+
             echo "=== Waiting for rollout ==="
             sudo kubectl rollout status deployment/order-service   -n agentic-o11y-mcp --timeout=120s
             sudo kubectl rollout status deployment/payment-service -n agentic-o11y-mcp --timeout=120s

@@ -53,7 +53,7 @@ class PaymentResponse(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "payment-service", "version": SERVICE_VERSION}
+    return {"status": "ok", "service": "payment-service"}
 
 
 @app.post("/pay", response_model=PaymentResponse)

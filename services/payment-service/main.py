@@ -1,15 +1,14 @@
 """
-payment-service v1.1 — BUG VERSION
-Deploy this on the feature/v1.1-payment-bug branch.
+payment-service v1.0 — 正常版 (no bugs)
 
-Bug: ZeroDivisionError when payment.amount is a whole number (e.g. 100, 200).
-     decimal_part = 0  →  payment.amount / decimal_part  →  ZeroDivisionError
+v1.1 bug: decimal_part = payment.amount - int(payment.amount)
+          discount_rate = payment.amount / decimal_part  ← ZeroDivisionError when whole number
 
-Load generator sends 60% integer amounts → ~60% error rate after deploy.
+v1.2 fix: guard against decimal_part == 0 before division
 """
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
 from opentelemetry import trace
 from pythonjsonlogger import jsonlogger
@@ -67,14 +66,8 @@ def process_payment(payment: PaymentRequest):
             "amount": payment.amount,
         })
 
-        # ── v1.1 BUG: ZeroDivisionError for whole-number amounts ─────────────
-        # Intended: compute a "decimal discount" for amounts with cents.
-        # Bug: when amount is a whole number, decimal_part == 0 → division by zero.
-        decimal_part = payment.amount - int(payment.amount)
-        discount_rate = payment.amount / decimal_part  # BUG: ZeroDivisionError when decimal_part == 0
-
         fee = round(payment.amount * 0.03, 2)
-        total = round(payment.amount + fee - discount_rate, 2)
+        total = round(payment.amount + fee, 2)
 
         span.set_attribute("payment.fee", fee)
         span.set_attribute("payment.total", total)

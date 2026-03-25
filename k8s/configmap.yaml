@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agentic-o11y-mcp-config
+  namespace: agentic-o11y-mcp
+data:
+  # Splunk Observability Cloud
+  SPLUNK_O11Y_REALM: "jp0"
+  SPLUNK_O11Y_INGEST_URL: "https://ingest.jp0.signalfx.com"
+
+  # Splunk Enterprise HEC
+  SPLUNK_HEC_URL: "https://splunk-enterprise-host:8088"   # <-- replace with actual host
+  SPLUNK_HEC_INDEX: "demo_logs"
+  SPLUNK_HEC_SOURCETYPE: "demo:app"
+  SPLUNK_HEC_SOURCE: "k8s:agentic-o11y-mcp"
+
+  # OTel Collector in-cluster endpoint
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+
+  # App settings
+  PAYMENT_SERVICE_URL: "http://payment-service:8001"
+  REQUEST_INTERVAL_SECONDS: "2"

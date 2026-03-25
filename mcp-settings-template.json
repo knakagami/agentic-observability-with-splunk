@@ -1,0 +1,30 @@
+{
+  "model": "claude-sonnet-4-6",
+  "mcpServers": {
+    "splunk": {
+      "command": "uvx",
+      "args": ["splunk-mcp"],
+      "env": {
+        "SPLUNK_HOST": "<splunk-enterprise-host>",
+        "SPLUNK_PORT": "8089",
+        "SPLUNK_TOKEN": "<splunk-enterprise-token>",
+        "SPLUNK_VERIFY_SSL": "false"
+      }
+    },
+    "splunk-observability": {
+      "command": "uvx",
+      "args": ["splunk-observability-mcp"],
+      "env": {
+        "SPLUNK_OBSERVABILITY_TOKEN": "<splunk-o11y-token>",
+        "SPLUNK_OBSERVABILITY_REALM": "jp0"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "<github-pat>"
+      }
+    }
+  }
+}

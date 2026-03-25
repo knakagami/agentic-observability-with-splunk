@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-generator
+  namespace: agentic-o11y-mcp
+  labels:
+    app: load-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: load-generator
+  template:
+    metadata:
+      labels:
+        app: load-generator
+    spec:
+      containers:
+        - name: load-generator
+          image: load-generator:latest
+          imagePullPolicy: Never
+          command: ["python", "load_generator.py"]
+          env:
+            - name: ORDER_SERVICE_URL
+              value: "http://order-service:8000"
+            - name: REQUEST_INTERVAL_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: agentic-o11y-mcp-config
+                  key: REQUEST_INTERVAL_SECONDS
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+            requests:
+              memory: "64Mi"
+              cpu: "25m"

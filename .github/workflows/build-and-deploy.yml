@@ -1,0 +1,86 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to K3s VM
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH to K3s VM
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.K3S_VM_HOST }}
+          username: ${{ secrets.K3S_VM_USER }}
+          key: ${{ secrets.K3S_SSH_KEY }}
+          command_timeout: 15m
+          script: |
+            set -e
+            cd ~/agentic-observability-with-splunk
+            git pull origin main
+
+            echo "=== Building Docker images ==="
+            docker build -t order-service:latest ./services/order-service
+            docker build -t payment-service:latest ./services/payment-service
+            # load-generator uses the same image as order-service
+            docker tag order-service:latest load-generator:latest
+
+            echo "=== Importing images into k3s containerd ==="
+            docker save order-service:latest   | sudo k3s ctr images import -
+            docker save payment-service:latest | sudo k3s ctr images import -
+            docker save load-generator:latest  | sudo k3s ctr images import -
+
+            echo "=== Applying Kubernetes manifests ==="
+            sudo kubectl apply -f k8s/namespace.yaml
+            sudo kubectl apply -f k8s/configmap.yaml
+            # secrets.yaml is a template — skip if real secret already exists
+            sudo kubectl apply -f k8s/otel-collector/
+            sudo kubectl apply -f k8s/order-service/
+            sudo kubectl apply -f k8s/payment-service/
+            sudo kubectl apply -f k8s/load-generator/
+
+            echo "=== Waiting for rollout ==="
+            sudo kubectl rollout status deployment/order-service   -n agentic-o11y-mcp --timeout=120s
+            sudo kubectl rollout status deployment/payment-service -n agentic-o11y-mcp --timeout=120s
+            sudo kubectl rollout status deployment/otel-collector  -n agentic-o11y-mcp --timeout=120s
+
+            echo "=== Deployment complete ==="
+
+      - name: Send deployment event to Splunk Observability Cloud
+        if: success()
+        env:
+          SPLUNK_O11Y_TOKEN: ${{ secrets.SPLUNK_O11Y_TOKEN }}
+        run: |
+          DEPLOY_TIME=$(date +%s%3N)
+          COMMIT_SHA="${{ github.sha }}"
+          SHORT_SHA="${COMMIT_SHA:0:7}"
+          REF_NAME="${{ github.ref_name }}"
+
+          curl -s -X POST "https://ingest.jp0.signalfx.com/v2/event" \
+            -H "Content-Type: application/json" \
+            -H "X-SF-Token: ${SPLUNK_O11Y_TOKEN}" \
+            -d "[{
+              \"category\": \"DEPLOYMENT\",
+              \"eventType\": \"deployment\",
+              \"dimensions\": {
+                \"service\": \"payment-service\",
+                \"environment\": \"demo\",
+                \"deployment.environment\": \"demo\"
+              },
+              \"properties\": {
+                \"description\": \"Deploy ${SHORT_SHA} to demo (${REF_NAME})\",
+                \"sha\": \"${COMMIT_SHA}\",
+                \"branch\": \"${REF_NAME}\",
+                \"runId\": \"${{ github.run_id }}\",
+                \"actor\": \"${{ github.actor }}\"
+              },
+              \"timestamp\": ${DEPLOY_TIME}
+            }]"
+          echo "Deployment event sent to Splunk O11y (timestamp: ${DEPLOY_TIME})"

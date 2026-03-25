@@ -28,8 +28,8 @@ jobs:
             git pull origin main
 
             echo "=== Building Docker images ==="
-            docker build -t order-service:latest ./services/order-service
-            docker build -t payment-service:latest ./services/payment-service
+            docker build --no-cache -t order-service:latest ./services/order-service
+            docker build --no-cache -t payment-service:latest ./services/payment-service
             # load-generator uses the same image as order-service
             docker tag order-service:latest load-generator:latest
 

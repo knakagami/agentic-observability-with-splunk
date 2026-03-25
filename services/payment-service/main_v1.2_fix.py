@@ -1,12 +1,11 @@
 """
 payment-service v1.2 — FIX VERSION
-Deploy this on the fix/payment-division-error branch.
 
-Fix: guard against decimal_part == 0 before division.
+Fix: add key 0 to DISCOUNT_RATES so integer amounts (tier_key=0) are handled correctly.
 """
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
 from opentelemetry import trace
 from pythonjsonlogger import jsonlogger
@@ -36,6 +35,13 @@ logger = logging.getLogger("payment-service")
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="payment-service")
 
+# v1.2 FIX: key 0 added — integer amounts (no decimal part) get 0% discount.
+DISCOUNT_RATES = {
+    0: 0.0,
+    1: 0.01, 2: 0.02, 3: 0.03, 4: 0.04, 5: 0.05,
+    6: 0.06, 7: 0.07, 8: 0.08, 9: 0.09,
+}
+
 
 class PaymentRequest(BaseModel):
     payment_id: str
@@ -57,26 +63,18 @@ def health():
 def process_payment(payment: PaymentRequest):
     with tracer.start_as_current_span("process_payment") as span:
         span.set_attribute("payment.id", payment.payment_id)
-        span.set_attribute("payment.amount", payment.amount)
 
         logger.info("Processing payment", extra={
             "payment_id": payment.payment_id,
             "amount": payment.amount,
         })
 
-        # ── v1.2 FIX: guard against zero decimal_part ─────────────────────────
         decimal_part = payment.amount - int(payment.amount)
-        if decimal_part > 0:
-            discount_rate = payment.amount / decimal_part
-        else:
-            discount_rate = 0.0  # no decimal → no discount
+        tier_key = round(decimal_part * 10)
+        discount_rate = DISCOUNT_RATES[tier_key]  # Fixed: key 0 now exists
 
         fee = round(payment.amount * 0.03, 2)
         total = round(payment.amount + fee - discount_rate, 2)
-        total = max(total, 0.0)  # ensure non-negative
-
-        span.set_attribute("payment.fee", fee)
-        span.set_attribute("payment.total", total)
 
         logger.info("Payment processed", extra={
             "payment_id": payment.payment_id,

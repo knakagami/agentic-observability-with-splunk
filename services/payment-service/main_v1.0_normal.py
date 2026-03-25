@@ -1,10 +1,5 @@
 """
 payment-service v1.0 — 正常版 (no bugs)
-
-v1.1 bug: decimal_part = payment.amount - int(payment.amount)
-          discount_rate = payment.amount / decimal_part  ← ZeroDivisionError when whole number
-
-v1.2 fix: guard against decimal_part == 0 before division
 """
 import logging
 
@@ -59,7 +54,6 @@ def health():
 def process_payment(payment: PaymentRequest):
     with tracer.start_as_current_span("process_payment") as span:
         span.set_attribute("payment.id", payment.payment_id)
-        span.set_attribute("payment.amount", payment.amount)
 
         logger.info("Processing payment", extra={
             "payment_id": payment.payment_id,
@@ -68,9 +62,6 @@ def process_payment(payment: PaymentRequest):
 
         fee = round(payment.amount * 0.03, 2)
         total = round(payment.amount + fee, 2)
-
-        span.set_attribute("payment.fee", fee)
-        span.set_attribute("payment.total", total)
 
         logger.info("Payment processed", extra={
             "payment_id": payment.payment_id,

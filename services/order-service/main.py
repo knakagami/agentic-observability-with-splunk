@@ -11,8 +11,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from pythonjsonlogger import jsonlogger
 
 # ── OTel setup ────────────────────────────────────────────────────────────────
@@ -51,8 +49,6 @@ logger = logging.getLogger("order-service")
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="order-service")
-FastAPIInstrumentor.instrument_app(app)
-HTTPXClientInstrumentor().instrument()
 
 PAYMENT_SERVICE_URL = os.getenv("PAYMENT_SERVICE_URL", "http://payment-service:8001")
 

@@ -30,6 +30,8 @@ GitHub Actions: commit → SSH into K3s VM (port 2222) → git pull → docker b
 ```
 .
 ├── .github/workflows/build-and-deploy.yml   # CI/CD: SSH deploy to K3s
+├── scripts/
+│   └── switch-version.sh                    # バージョン切り替えスクリプト
 ├── services/
 │   ├── order-service/
 │   │   ├── main.py                          # FastAPI + OTel + JSON logs
@@ -37,9 +39,10 @@ GitHub Actions: commit → SSH into K3s VM (port 2222) → git pull → docker b
 │   │   ├── requirements.txt
 │   │   └── Dockerfile
 │   └── payment-service/
-│       ├── main.py                          # v1.0: normal (deployed to main)
-│       ├── main_v1.1_bug.py                 # v1.1: ZeroDivisionError bug (copy to main.py for bug branch)
-│       ├── main_v1.2_fix.py                 # v1.2: fixed (copy to main.py for fix branch)
+│       ├── main.py                          # 現在デプロイ中のバージョン
+│       ├── main_v1.0_normal.py              # v1.0: 正常版
+│       ├── main_v1.1_bug.py                 # v1.1: ZeroDivisionError バグあり
+│       ├── main_v1.2_fix.py                 # v1.2: 修正済み
 │       ├── requirements.txt
 │       └── Dockerfile
 ├── k8s/
@@ -47,8 +50,8 @@ GitHub Actions: commit → SSH into K3s VM (port 2222) → git pull → docker b
 │   ├── order-service/
 │   ├── payment-service/
 │   └── load-generator/
-├── detector/create_detector.py              # Create Splunk O11y detector via API
-├── splunk/spl_queries.md                    # SPL queries for demo investigation
+├── detector/create_detector.py              # Splunk O11y Detector作成スクリプト
+├── splunk/spl_queries.md                    # デモ中にClaudeが使うSPLクエリ集
 └── mcp-settings-template.json              # ~/.claude/settings.json template
 ```
 
@@ -95,13 +98,25 @@ python detector/create_detector.py
 
 ---
 
-## デモシナリオ
+## バージョン切り替え
 
-| ブランチ | 内容 |
-|---------|------|
-| `main` | v1.0 正常版 |
-| `feature/v1.1-payment-bug` | v1.1 バグあり (`main.py` を `main_v1.1_bug.py` の内容に差し替え) |
-| `fix/payment-division-error` | v1.2 修正版 (`main.py` を `main_v1.2_fix.py` の内容に差し替え) |
+`scripts/switch-version.sh` で payment-service のバージョンを切り替えられます。
+`main.py` の差し替えと `deployment.yaml` のバージョン更新・push までを自動実行します。
+
+```bash
+# デモ前のリセット（v1.0 正常版）
+./scripts/switch-version.sh v1.0
+
+# バグ導入（エラー率急上昇シナリオ）
+./scripts/switch-version.sh v1.1
+
+# 修正版デプロイ（回復シナリオ）
+./scripts/switch-version.sh v1.2
+```
+
+---
+
+## デモシナリオ
 
 ### バグの内容 (v1.1)
 
@@ -114,17 +129,31 @@ discount_rate = payment.amount / decimal_part         # → ZeroDivisionError!
 
 Load Generatorは60%の確率で整数金額を送るため、エラー率が約60%に急上昇します。
 
----
+### デモフロー (10〜15分)
 
-## デモフロー (10〜15分)
-
-1. v1.0 正常動作を Splunk O11y ダッシュボードで確認
-2. `feature/v1.1-payment-bug` ブランチのPRをマージ
+1. `./scripts/switch-version.sh v1.0` で正常状態を確認
+2. `./scripts/switch-version.sh v1.1` でバグ導入
 3. GitHub Actions デプロイ完了 → O11y にデプロイマーカー表示
 4. エラー率急上昇 → Detector アラート発火
 5. Claude (Obs Cloud MCP): エラー率メトリクス確認・失敗トレース特定
 6. Claude (Splunk MCP): SPLでスタックトレース抽出・ZeroDivisionError 特定
 7. Claude (Splunk MCP): 「整数金額のみが失敗」パターンを統計的に証明
 8. Claude (GitHub MCP): 修正PRを作成 (v1.2)
-9. PRマージ → デプロイ
-10. Claude (Obs Cloud MCP): エラー率0%への回復を確認
+9. PRマージ → デプロイ → エラー率0%への回復を確認
+
+### デモ後のリセット
+
+```bash
+./scripts/switch-version.sh v1.0
+```
+
+---
+
+## OTel リソース属性
+
+| 属性 | 値 | 設定場所 |
+|------|-----|---------|
+| `service.name` | `order-service` / `payment-service` | k8s deployment env `OTEL_SERVICE_NAME` |
+| `deployment.environment` | `agentic-o11y` | k8s deployment env `OTEL_RESOURCE_ATTRIBUTES` |
+| `service.version` | `1.0` / `1.1` / `1.2` | k8s deployment env `OTEL_RESOURCE_ATTRIBUTES` |
+| `service.namespace` | `agentic-o11y-mcp` | k8s deployment env `OTEL_RESOURCE_ATTRIBUTES` |

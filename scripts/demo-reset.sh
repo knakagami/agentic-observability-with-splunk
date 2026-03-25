@@ -4,12 +4,6 @@
 # 使い方:
 #   ./scripts/demo-reset.sh
 #
-# 前提:
-#   - v1.0-demo-base タグが存在すること
-#     （cleanup PR を main にマージした後、初回のみ以下を実行）
-#     git tag v1.0-demo-base origin/main
-#     git push origin v1.0-demo-base
-#
 # デモ終了後の手順:
 #   1. ./scripts/demo-reset.sh を実行
 #   2. GitHub で feature/payment-decimal-discount → main の PR を再作成
@@ -21,10 +15,10 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$REPO_ROOT"
 
-echo "🔄 main を v1.0-demo-base にリセット中..."
+echo "🔄 main を v1.0 ベースラインにリセット中..."
 git fetch origin
 git checkout main
-git reset --hard v1.0-demo-base
+git reset --hard origin/demo/v1.0-base
 git push -f origin main
 
 echo ""

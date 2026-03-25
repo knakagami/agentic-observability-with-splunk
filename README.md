@@ -82,15 +82,16 @@ sudo kubectl create namespace agentic-o11y-mcp
 git push origin main  # → GitHub Actions が自動実行
 ```
 
-### 4. デモ用タグの作成（初回のみ・クリーンアップPR マージ後に実行）
+### 4. デモ用ベースラインブランチの作成（初回のみ・クリーンアップPR マージ後に実行）
 
 ```bash
 git fetch origin
-git tag v1.0-demo-base origin/main
-git push origin v1.0-demo-base
+git checkout -b demo/v1.0-base origin/main
+git push origin demo/v1.0-base
 ```
 
-> `demo-reset.sh` はこのタグを基点として `main` をリセットします。
+> `demo-reset.sh` はこのブランチを基点として `main` をリセットします。
+> **このブランチは削除・更新しないでください。**
 
 ### 5. Detector 作成
 
@@ -157,7 +158,7 @@ Load Generatorは60%の確率で整数金額を送るため、エラー率が約
 ./scripts/demo-reset.sh
 ```
 
-スクリプトは `main` を `v1.0-demo-base` タグに force reset します。
+スクリプトは `main` を `demo/v1.0-base` ブランチに force reset します。
 その後、GitHub で `feature/payment-decimal-discount` → `main` の PR を再作成してください。
 
 > **注:** `fix/payment-division-by-zero` → `main` の PR は Claude がデモ中に作成するため、再作成不要です。

@@ -1,5 +1,5 @@
 """
-payment-service v1.1
+payment-service v1.2
 """
 import logging
 
@@ -33,8 +33,10 @@ logger = logging.getLogger("payment-service")
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="payment-service")
 
-# Discount rate table keyed by decimal tier (1–9).
+# Discount rate table keyed by decimal tier (0–9).
+# 0: integer amount (no decimal part), 1–9: fractional amounts.
 DISCOUNT_RATES = {
+    0: 0.0,
     1: 0.01, 2: 0.02, 3: 0.03, 4: 0.04, 5: 0.05,
     6: 0.06, 7: 0.07, 8: 0.08, 9: 0.09,
 }

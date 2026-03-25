@@ -22,10 +22,14 @@ spec:
           ports:
             - containerPort: 8000
           env:
-            - name: SERVICE_VERSION
-              value: "1.0"
+            - name: OTEL_SERVICE_NAME
+              value: "order-service"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "deployment.environment=demo,service.namespace=agentic-o11y-mcp,service.version=1.0"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://splunk-otel-collector-agent.default.svc.cluster.local:4317"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "grpc"
             - name: PAYMENT_SERVICE_URL
               value: "http://payment-service:8001"
           resources:

@@ -7,29 +7,12 @@ v1.1 bug: decimal_part = payment.amount - int(payment.amount)
 v1.2 fix: guard against decimal_part == 0 before division
 """
 import logging
-import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
 from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.resources import Resource
 from pythonjsonlogger import jsonlogger
 
-# ── OTel setup ────────────────────────────────────────────────────────────────
-SERVICE_VERSION = os.getenv("SERVICE_VERSION", "1.0")
-resource = Resource.create({
-    "service.name": "payment-service",
-    "service.version": SERVICE_VERSION,
-    "deployment.environment": "demo",
-    "service.namespace": "agentic-o11y-mcp",
-})
-provider = TracerProvider(resource=resource)
-otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4317")
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint)))
-trace.set_tracer_provider(provider)
 tracer = trace.get_tracer("payment-service")
 
 # ── Structured JSON logging with trace_id ─────────────────────────────────────
@@ -69,7 +52,7 @@ class PaymentResponse(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "payment-service", "version": SERVICE_VERSION}
+    return {"status": "ok", "service": "payment-service"}
 
 
 @app.post("/pay", response_model=PaymentResponse)
@@ -83,8 +66,6 @@ def process_payment(payment: PaymentRequest):
             "amount": payment.amount,
         })
 
-        # ── v1.0: normal processing ───────────────────────────────────────────
-        # Apply a small fixed fee
         fee = round(payment.amount * 0.03, 2)
         total = round(payment.amount + fee, 2)
 

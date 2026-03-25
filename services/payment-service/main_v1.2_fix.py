@@ -5,29 +5,12 @@ Deploy this on the fix/payment-division-error branch.
 Fix: guard against decimal_part == 0 before division.
 """
 import logging
-import os
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.resources import Resource
 from pythonjsonlogger import jsonlogger
 
-# ── OTel setup ────────────────────────────────────────────────────────────────
-SERVICE_VERSION = os.getenv("SERVICE_VERSION", "1.2")
-resource = Resource.create({
-    "service.name": "payment-service",
-    "service.version": SERVICE_VERSION,
-    "deployment.environment": "demo",
-    "service.namespace": "agentic-o11y-mcp",
-})
-provider = TracerProvider(resource=resource)
-otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4317")
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint)))
-trace.set_tracer_provider(provider)
 tracer = trace.get_tracer("payment-service")
 
 # ── Structured JSON logging with trace_id ─────────────────────────────────────

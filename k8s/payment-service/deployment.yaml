@@ -25,7 +25,7 @@ spec:
             - name: OTEL_SERVICE_NAME
               value: "payment-service"
             - name: OTEL_RESOURCE_ATTRIBUTES
-              value: "deployment.environment=demo,service.namespace=agentic-o11y-mcp,service.version=1.0"
+              value: "deployment.environment=agentic-o11y,service.namespace=agentic-o11y-mcp,service.version=1.0"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://splunk-otel-collector-agent.default.svc.cluster.local:4317"
             - name: OTEL_EXPORTER_OTLP_PROTOCOL

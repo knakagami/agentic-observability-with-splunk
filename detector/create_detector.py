@@ -48,7 +48,7 @@ detector('Demo: Payment Service High Error Rate') {
     var errors = data(
         'service.request.count',
         filter=filter('service.name', 'payment-service')
-            and filter('deployment.environment', 'demo')
+            and filter('deployment.environment', 'agentic-o11y')
             and filter('http.status_class', '5xx'),
         rollup='sum'
     ).sum(over='1m')
@@ -56,7 +56,7 @@ detector('Demo: Payment Service High Error Rate') {
     var total = data(
         'service.request.count',
         filter=filter('service.name', 'payment-service')
-            and filter('deployment.environment', 'demo'),
+            and filter('deployment.environment', 'agentic-o11y'),
         rollup='sum'
     ).sum(over='1m')
 

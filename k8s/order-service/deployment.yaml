@@ -25,15 +25,9 @@ spec:
             - name: SERVICE_VERSION
               value: "1.0"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              valueFrom:
-                configMapKeyRef:
-                  name: agentic-o11y-mcp-config
-                  key: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://splunk-otel-collector:4317"
             - name: PAYMENT_SERVICE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: agentic-o11y-mcp-config
-                  key: PAYMENT_SERVICE_URL
+              value: "http://payment-service:8001"
           resources:
             limits:
               memory: "256Mi"

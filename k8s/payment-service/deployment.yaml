@@ -25,10 +25,7 @@ spec:
             - name: SERVICE_VERSION
               value: "1.0"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              valueFrom:
-                configMapKeyRef:
-                  name: agentic-o11y-mcp-config
-                  key: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://splunk-otel-collector:4317"
           resources:
             limits:
               memory: "256Mi"

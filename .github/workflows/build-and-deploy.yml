@@ -40,9 +40,6 @@ jobs:
 
             echo "=== Applying Kubernetes manifests ==="
             sudo kubectl apply -f k8s/namespace.yaml
-            sudo kubectl apply -f k8s/configmap.yaml
-            # secrets.yaml is a template — skip if real secret already exists
-            sudo kubectl apply -f k8s/otel-collector/
             sudo kubectl apply -f k8s/order-service/
             sudo kubectl apply -f k8s/payment-service/
             sudo kubectl apply -f k8s/load-generator/
@@ -50,7 +47,7 @@ jobs:
             echo "=== Waiting for rollout ==="
             sudo kubectl rollout status deployment/order-service   -n agentic-o11y-mcp --timeout=120s
             sudo kubectl rollout status deployment/payment-service -n agentic-o11y-mcp --timeout=120s
-            sudo kubectl rollout status deployment/otel-collector  -n agentic-o11y-mcp --timeout=120s
+            sudo kubectl rollout status deployment/load-generator  -n agentic-o11y-mcp --timeout=120s
 
             echo "=== Deployment complete ==="
 

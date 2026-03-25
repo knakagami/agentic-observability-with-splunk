@@ -18,6 +18,7 @@ jobs:
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.K3S_VM_HOST }}
+          port: 2222
           username: ${{ secrets.K3S_VM_USER }}
           key: ${{ secrets.K3S_SSH_KEY }}
           command_timeout: 15m

@@ -31,7 +31,7 @@ GitHub Actions: commit → SSH into K3s VM (port 2222) → git pull → docker b
 .
 ├── .github/workflows/build-and-deploy.yml   # CI/CD: SSH deploy to K3s
 ├── scripts/
-│   └── switch-version.sh                    # バージョン切り替えスクリプト
+│   └── demo-reset.sh                        # デモ後リセットスクリプト
 ├── services/
 │   ├── order-service/
 │   │   ├── main.py                          # FastAPI + OTel + JSON logs
@@ -40,9 +40,6 @@ GitHub Actions: commit → SSH into K3s VM (port 2222) → git pull → docker b
 │   │   └── Dockerfile
 │   └── payment-service/
 │       ├── main.py                          # 現在デプロイ中のバージョン
-│       ├── main_v1.0_normal.py              # v1.0: 正常版
-│       ├── main_v1.1_bug.py                 # v1.1: ZeroDivisionError バグあり
-│       ├── main_v1.2_fix.py                 # v1.2: 修正済み
 │       ├── requirements.txt
 │       └── Dockerfile
 ├── k8s/
@@ -85,34 +82,44 @@ sudo kubectl create namespace agentic-o11y-mcp
 git push origin main  # → GitHub Actions が自動実行
 ```
 
-### 4. Detector 作成
+### 4. デモ用タグの作成（初回のみ・クリーンアップPR マージ後に実行）
+
+```bash
+git fetch origin
+git tag v1.0-demo-base origin/main
+git push origin v1.0-demo-base
+```
+
+> `demo-reset.sh` はこのタグを基点として `main` をリセットします。
+
+### 5. Detector 作成
 
 ```bash
 export SPLUNK_O11Y_TOKEN=<your-token>
 python detector/create_detector.py
 ```
 
-### 5. MCP設定
+### 6. MCP設定
 
 `mcp-settings-template.json` を参考に `~/.claude/settings.json` にMCPサーバー設定を追加してください。
 
 ---
 
-## バージョン切り替え
+## デモ用ブランチ構成
 
-`scripts/switch-version.sh` で payment-service のバージョンを切り替えられます。
-`main.py` の差し替えと `deployment.yaml` のバージョン更新・push までを自動実行します。
+バージョン管理はブランチで行います。各バージョンの差分は対応するブランチの PR で確認できます。
 
-```bash
-# デモ前のリセット（v1.0 正常版）
-./scripts/switch-version.sh v1.0
-
-# バグ導入（エラー率急上昇シナリオ）
-./scripts/switch-version.sh v1.1
-
-# 修正版デプロイ（回復シナリオ）
-./scripts/switch-version.sh v1.2
 ```
+main  ←─────────────────────────────────── v1.0 ベースライン（デモ前後は常にここ）
+  └── feature/payment-decimal-discount  ─── v1.1: discount機能追加（バグあり）
+        └── fix/payment-division-by-zero ── v1.2: KeyError 修正
+```
+
+| ブランチ | 内容 | PRでの役割 |
+|---------|------|-----------|
+| `main` | v1.0 正常版 | ベースライン |
+| `feature/payment-decimal-discount` | v1.1 バグあり | デモ中にマージ → バグ導入 |
+| `fix/payment-division-by-zero` | v1.2 修正版 | Claude が GitHub MCP でマージ → 回復 |
 
 ---
 
@@ -120,32 +127,40 @@ python detector/create_detector.py
 
 ### バグの内容 (v1.1)
 
-`payment-service` で `payment.amount` が整数のとき `ZeroDivisionError` が発生します。
+`payment-service` で `payment.amount` が整数のとき `KeyError: 0` が発生します。
 
 ```python
-decimal_part = payment.amount - int(payment.amount)  # → 0 for whole numbers
-discount_rate = payment.amount / decimal_part         # → ZeroDivisionError!
+DISCOUNT_RATES = {1: 0.01, 2: 0.02, ..., 9: 0.09}  # key 0 が存在しない
+
+decimal_part = payment.amount - int(payment.amount)  # → 0.0 for whole numbers
+tier_key = round(decimal_part * 10)                  # → 0
+discount_rate = DISCOUNT_RATES[tier_key]             # → KeyError: 0 !
 ```
 
 Load Generatorは60%の確率で整数金額を送るため、エラー率が約60%に急上昇します。
 
 ### デモフロー (10〜15分)
 
-1. `./scripts/switch-version.sh v1.0` で正常状態を確認
-2. `./scripts/switch-version.sh v1.1` でバグ導入
+1. main が v1.0 の状態であることを確認
+2. **`feature/payment-decimal-discount` → main の PR をマージ** → v1.1 デプロイ
 3. GitHub Actions デプロイ完了 → O11y にデプロイマーカー表示
 4. エラー率急上昇 → Detector アラート発火
 5. Claude (Obs Cloud MCP): エラー率メトリクス確認・失敗トレース特定
-6. Claude (Splunk MCP): SPLでスタックトレース抽出・ZeroDivisionError 特定
+6. Claude (Splunk MCP): SPLでスタックトレース抽出・`KeyError: 0` 特定
 7. Claude (Splunk MCP): 「整数金額のみが失敗」パターンを統計的に証明
-8. Claude (GitHub MCP): 修正PRを作成 (v1.2)
-9. PRマージ → デプロイ → エラー率0%への回復を確認
+8. **Claude (GitHub MCP): `fix/payment-division-by-zero` → main の PR を作成・マージ** → v1.2 デプロイ
+9. エラー率0%への回復を確認
 
 ### デモ後のリセット
 
 ```bash
-./scripts/switch-version.sh v1.0
+./scripts/demo-reset.sh
 ```
+
+スクリプトは `main` を `v1.0-demo-base` タグに force reset します。
+その後、GitHub で `feature/payment-decimal-discount` → `main` の PR を再作成してください。
+
+> **注:** `fix/payment-division-by-zero` → `main` の PR は Claude がデモ中に作成するため、再作成不要です。
 
 ---
 

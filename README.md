@@ -16,11 +16,11 @@ order-service (FastAPI) ──calls──> payment-service (FastAPI)
        │                                    │
        └──── OpenTelemetry SDK ─────────────┘
                       │
-              OTel Collector (K8s Deployment)
-              ├── traces/metrics ──> Splunk Observability Cloud (jp0)
-              └── logs ──────────> Splunk Enterprise (HEC)
+        Splunk Distro OTel Collector (既存、default namespace)
+        ├── traces/metrics ──> Splunk Observability Cloud (jp0)
+        └── logs ──────────> Splunk Enterprise (HEC)
 
-GitHub Actions: commit → SSH into K3s VM → git pull → docker build → k3s ctr import → kubectl apply → deploy annotation
+GitHub Actions: commit → SSH into K3s VM (port 2222) → git pull → docker build → k3s ctr import → kubectl apply → deploy annotation
 ```
 
 ---
@@ -44,9 +44,6 @@ GitHub Actions: commit → SSH into K3s VM → git pull → docker build → k3s
 │       └── Dockerfile
 ├── k8s/
 │   ├── namespace.yaml
-│   ├── configmap.yaml                       # Non-secret config (edit HEC URL here)
-│   ├── secrets.yaml                         # Template only — create real secret via kubectl
-│   ├── otel-collector/
 │   ├── order-service/
 │   ├── payment-service/
 │   └── load-generator/
@@ -66,7 +63,7 @@ GitHub Actions: commit → SSH into K3s VM → git pull → docker build → k3s
 | `K3S_VM_HOST` | K3s VMのIPアドレス |
 | `K3S_VM_USER` | SSHユーザー名 |
 | `K3S_SSH_KEY` | SSH秘密鍵 |
-| `SPLUNK_O11Y_TOKEN` | Splunk Observability Cloudアクセストークン |
+| `SPLUNK_O11Y_TOKEN` | Splunk Observability Cloudアクセストークン (デプロイイベント送信用) |
 
 ### 2. K3s VM の初期セットアップ
 
@@ -77,35 +74,24 @@ cd agentic-observability-with-splunk
 
 # Namespace作成
 sudo kubectl create namespace agentic-o11y-mcp
-
-# Secret作成 (実際のトークンで)
-sudo kubectl create secret generic agentic-o11y-mcp-secrets \
-  --from-literal=splunk_o11y_token=<SPLUNK_O11Y_TOKEN> \
-  --from-literal=splunk_hec_token=<SPLUNK_HEC_TOKEN> \
-  -n agentic-o11y-mcp
 ```
 
-### 3. configmap.yaml の更新
-
-`k8s/configmap.yaml` の `SPLUNK_HEC_URL` を実際のSplunk EnterpriseのHEC URLに変更してください。
-
-### 4. 初回デプロイ
+### 3. 初回デプロイ
 
 ```bash
 git push origin main  # → GitHub Actions が自動実行
 ```
 
-### 5. Detector 作成
+### 4. Detector 作成
 
 ```bash
 export SPLUNK_O11Y_TOKEN=<your-token>
 python detector/create_detector.py
 ```
 
-### 6. MCP設定
+### 5. MCP設定
 
 `mcp-settings-template.json` を参考に `~/.claude/settings.json` にMCPサーバー設定を追加してください。
-（Splunk MCP / Obs Cloud MCP のパッケージ名・起動方法はユーザー提供の設定ガイドに基づいて調整してください）
 
 ---
 

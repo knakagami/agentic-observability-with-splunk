@@ -1,10 +1,5 @@
 """
-payment-service v1.0 — 正常版 (no bugs)
-
-v1.1 bug: decimal_part = payment.amount - int(payment.amount)
-          discount_rate = payment.amount / decimal_part  ← ZeroDivisionError when whole number
-
-v1.2 fix: guard against decimal_part == 0 before division
+payment-service v1.0
 """
 import logging
 

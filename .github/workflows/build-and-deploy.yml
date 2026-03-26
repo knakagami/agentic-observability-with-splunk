@@ -33,11 +33,8 @@ jobs:
 
             echo "=== Building Docker images ==="
             # レイヤーキャッシュを効かせる（--no-cache は毎回フルビルドになり遅い）
-            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-            docker build -t "order-service:${SHORT_SHA}" ./services/order-service
-            docker build -t "payment-service:${SHORT_SHA}" ./services/payment-service
-            docker tag "order-service:${SHORT_SHA}" order-service:latest
-            docker tag "payment-service:${SHORT_SHA}" payment-service:latest
+            docker build -t order-service:latest ./services/order-service
+            docker build -t payment-service:latest ./services/payment-service
             # load-generator uses the same image as order-service
             docker tag order-service:latest load-generator:latest
 

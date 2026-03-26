@@ -5,6 +5,54 @@ of the payment-service error spike via the Splunk MCP.
 
 ---
 
+## 本番デモ用（コピペ）— `agentic-o11y-demo`・10 分窓
+
+実デモ環境では **`index=agentic-o11y-demo`** と **`deployment.environment=agentic-o11y`** を使う。Splunk MCP ではデフォルト **`earliest=-10m`** を推奨（長窓は避ける）。
+
+**サービス絞り込み（sourcetype OR）:**
+
+```spl
+index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m
+(sourcetype=kube:container:payment-service OR sourcetype=kube:container:order-service OR sourcetype=kube:container:load-generator)
+```
+
+**代替（namespace 相当）:**
+
+```spl
+index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m source=*agentic-o11y-mcp*
+```
+
+**payment-service — KeyError の時系列（回復確認の副）:**
+
+```spl
+index=agentic-o11y-demo deployment.environment=agentic-o11y sourcetype=kube:container:payment-service earliest=-10m
+| search *KeyError* OR *tier_key*
+| timechart span=1m count
+```
+
+**load-generator — `is_integer` × `status_code`（502 と整数金額の相関）:**
+
+```spl
+index=agentic-o11y-demo deployment.environment=agentic-o11y sourcetype=kube:container:load-generator earliest=-10m
+"Request sent"
+| stats count BY is_integer, status_code
+| sort is_integer, status_code
+```
+
+**payment-service — ログ上の `amount` で整数のみエラー（Ah-Ha、ログ主）:**
+
+```spl
+index=agentic-o11y-demo deployment.environment=agentic-o11y sourcetype=kube:container:payment-service earliest=-10m
+| eval amount_is_integer=if(isnotnull(amount) AND round(amount,0)==amount, "integer", "decimal")
+| stats count AS total, sum(eval(if(level="ERROR",1,0))) AS errors BY amount_is_integer
+| eval error_rate=round(if(total>0, errors/total*100, 0), 1)
+| table amount_is_integer, total, errors, error_rate
+```
+
+以下のセクションは **汎用プレースホルダ**（`index=demo_logs` 等）のまま残している。本番デモでは上記のインデックス・sourcetype に読み替える。
+
+---
+
 ## 1. エラーログの確認 — 直近5分のエラー件数
 
 ```spl

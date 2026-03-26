@@ -60,7 +60,6 @@ def health():
 def process_payment(payment: PaymentRequest):
     with tracer.start_as_current_span("process_payment") as span:
         span.set_attribute("payment.id", payment.payment_id)
-        span.set_attribute("payment.amount", payment.amount)
 
         logger.info("Processing payment", extra={
             "payment_id": payment.payment_id,

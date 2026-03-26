@@ -1,0 +1,58 @@
+---
+description: Agentic Observability with Splunk デモ運用（MCP・SPL・O11y・Git）
+globs: splunk/**,services/**,k8s/**,.github/**,README.md,scripts/**
+alwaysApply: false
+---
+
+# Agentic O11y + Splunk デモ — エージェント向けルール
+
+このリポジトリの登壇デモでは、**Splunk Observability Cloud MCP（jp0）**、**Splunk Enterprise MCP**、**GitHub MCP**を組み合わせる。
+
+## Splunk MCP（ログ）
+
+- デフォルトの時間窓は **`earliest=-10m`** を優先する（`-24h` など長窓はデモでは避け、応答とノイズを抑える）。
+- インデックスは実環境に合わせ **`index=agentic-o11y-demo`** を使う（プレースホルダ `demo_logs` は使わない）。
+- デモ用マイクロサービスだけに絞る例:
+
+```spl
+index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m
+(sourcetype=kube:container:payment-service OR sourcetype=kube:container:order-service OR sourcetype=kube:container:load-generator)
+```
+
+- namespace 相当の絞り込み: `source=*agentic-o11y-mcp*` または上記 `sourcetype` の OR。
+
+## Splunk Observability MCP（メトリクス・APM・トレース）
+
+- APM 環境名は **`agentic-o11y`**（`get_apm_environments` で確認可）。
+- 調査・**復旧確認**では **`service.version`（1.0 / 1.1 / 1.2）** でスコープする。デプロイ直後は **新バージョン**のスパン・エラー内訳を見る（古い Pod / バージョンと混ぜない）。
+- `service.version` は主に **OTel リソース属性（メトリクス・トレース）** に乗る。ログに必ず出るとは限らないため、バージョン別の健全性は **O11y 側を主**とする。
+
+## 推奨調査の流れ
+
+1. アラート / エラー率（O11y）→ サービス・エンドポイント特定。
+2. 失敗トレース（O11y）で例外種別・スタックの当たりを付ける。
+3. **Splunk** で `KeyError`・スタック・`trace_id` 相関。**整数金額パターンの裏付けはログを主**とする（load-generator の `is_integer` / `status_code`、payment の JSON `amount`）。  
+   意図的に **`payment.amount` はスパン属性に載せずログのみ**のため、トレースだけでは金額条件に気づきにくい。
+
+## Git / デモ後
+
+- デモ終了後は `./scripts/demo-reset.sh` で **`main` を `origin/demo/v1.0-base` に合わせる**。
+- その後 **GitHub で `feature/payment-decimal-discount` → `main` の PR を再作成**する。
+- `fix/payment-division-by-zero` → `main` の PR はデモ中に MCP で作る想定なら **再作成不要**（README 参照）。
+
+## fix ブランチをマージするとき（重要）
+
+- **`feature` を `main` にマージしたあと**、`main` は v1.1 状態に進む。
+- **`fix` の PR が古い `main` をベースにしていると**、`main` を取り込む際に **`payment-service` / `k8s/payment-service/deployment.yaml` でコンフリクト**しうる。
+- 対処: PR 画面で **Update branch**（`main` をマージ）するか、ローカルで **`fix` に `main` をマージ**してから push する。
+
+## 復旧確認チェックリスト（v1.2 デプロイ後）
+
+- **O11y**: `service.version=1.2`（または新 Pod）での **payment-service エラー率**が落ち着いているか。
+- **Splunk**: `payment-service` で **`KeyError` が直近 10 分で 0 件**に近いか（`timechart span=1m` 推奨）。
+- **任意**: load-generator の `Request sent` で `is_integer` × `status_code`（502 が消えているか）。
+
+## CI デプロイ時間の目安
+
+- VM 上の `docker build` は **レイヤーキャッシュ**を効かせる設定になっている（`--no-cache` なし）。初回のみフルビルドが長めになりうる。
+- O11y Detector のアラートは、デプロイ完了後 **数分のラグ**がありうる。デモ台本に余白を持たせる。

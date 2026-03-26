@@ -78,11 +78,11 @@ jobs:
               \"eventType\": \"deployment\",
               \"dimensions\": {
                 \"service\": \"payment-service\",
-                \"environment\": \"demo\",
-                \"deployment.environment\": \"demo\"
+                \"environment\": \"agentic-o11y\",
+                \"deployment.environment\": \"agentic-o11y\"
               },
               \"properties\": {
-                \"description\": \"Deploy ${SHORT_SHA} to demo (${REF_NAME})\",
+                \"description\": \"Deploy ${SHORT_SHA} to agentic-o11y (${REF_NAME})\",
                 \"sha\": \"${COMMIT_SHA}\",
                 \"branch\": \"${REF_NAME}\",
                 \"runId\": \"${{ github.run_id }}\",

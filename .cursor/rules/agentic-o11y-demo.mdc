@@ -6,11 +6,29 @@ alwaysApply: false
 
 # Agentic O11y + Splunk デモ — エージェント向けルール
 
-このリポジトリの登壇デモでは、**Splunk Observability Cloud MCP（jp0）**、**Splunk Enterprise MCP**、**GitHub MCP**を組み合わせる。
+## Git / PR（デモ実演）
+
+- **`feature` / `fix` を `main` に取り込むときは GitHub MCP で PR をマージする**（デモ手順としてローカル `git merge` + `push` は使わない）。
+- `feature` を `main` にマージしたあと、`fix` の PR が古い `main` ベースだとコンフリクトしうる。PR 画面で **Update branch**（`main` を取り込む）してからマージする。
+
+## `main` 以外のブランチへの反映（メンテナンス）
+
+`main` に **共通ファイル**（`README.md`、`.cursor/rules/`、`scripts/`、`splunk/`、`.github/workflows/` など）の変更を入れたら、デモ用ブランチにも取り込む。取り残すと PR や `demo-reset` 後の再開でドキュメントと実装がずれる。
+
+- **`feature/payment-decimal-discount`**: `main` をマージ（またはリベース）して `push`。
+- **`fix/payment-division-by-zero`**: 同様に `main` を取り込み `push`（`feature` マージ後のコンフリクト注意は README の既存節どおり）。
+- **v1.0 ベースライン**（リモートの **`demo/v1.0-base`** ブランチ、または README 手順の **`v1.0-demo-base` タグ**）: `main` が v1.0 のとき、ベースを **`main` の先頭に更新**する（タグなら `git tag -f v1.0-demo-base main` → `push -f origin v1.0-demo-base`、ブランチなら `demo/v1.0-base` に `main` を fast-forward マージして `push`）。
+
+K3s VM の CI は **`git pull` ではなく `fetch` + `reset --hard origin/main`** で同期する（`main` の force-push 後も VM と origin が分岐しないようにする）。
+
+## 調査の順序・チャネル
+
+- **ユーザーが明示したチャネル**（トレース / ログ / メトリクス）を最優先する。明示がない場合は、必要なら短く確認するか、**狭いデフォルト**（例: O11y でサービス健全性 → 指定があれば Splunk）に留め、README や本ルールを理由に**勝手にログ・クエリの範囲を広げない**。
+- 応答で **README やルールの「台本どおり」** といったメタ説明はしない。**指示された作業**に集中して述べる。
 
 ## Splunk MCP（ログ）
 
-- デフォルトの時間窓は **`earliest=-10m`** を優先する（`-24h` など長窓はデモでは避け、応答とノイズを抑える）。
+- 時間窓は **`earliest=-10m`** を既定とし、**5〜15 分程度**に収める（`-24h` や 30 分窓など長窓はデモでは避け、応答とノイズを抑える）。
 - インデックスは実環境に合わせ **`index=agentic-o11y-demo`** を使う（プレースホルダ `demo_logs` は使わない）。
 - デモ用マイクロサービスだけに絞る例:
 
@@ -24,27 +42,25 @@ index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m
 ## Splunk Observability MCP（メトリクス・APM・トレース）
 
 - APM 環境名は **`agentic-o11y`**（`get_apm_environments` で確認可）。
-- 調査・**復旧確認**では **`service.version`（1.0 / 1.1 / 1.2）** でスコープする。デプロイ直後は **新バージョン**のスパン・エラー内訳を見る（古い Pod / バージョンと混ぜない）。
+- **複数 `service.version` が同一時間窓に混在**しうる（短期再演など）。**先に評価スコープを宣言**する: 障害の説明なら **`service.version=1.1`**（など導入直後の版）、回復確認なら **`service.version=1.2`**。混在する他バージョンの件数で**全体平均だけを障害の証拠にしない**。
+- 調査・復旧確認では **対象バージョン**のスパン・エラー内訳を見る（意図しない古い Pod / バージョンと混ぜない）。
 - `service.version` は主に **OTel リソース属性（メトリクス・トレース）** に乗る。ログに必ず出るとは限らないため、バージョン別の健全性は **O11y 側を主**とする。
 
-## 推奨調査の流れ
+## O11y データ取得（ツールが空・異常な場合）
 
-1. アラート / エラー率（O11y）→ サービス・エンドポイント特定。
+- `get_apm_trace_tool` 等が **空・異常**なら、**別パラメータや時間窓で再試行**する。それでも主要データが得られない場合は **exemplar トレース**、**`get_apm_service_errors_and_requests`**、**Splunk で `trace_id` 相関**へ切り替える。
+- **MCP 経由でインサイトが得られた状態**をデモ成功の条件とする。主要な結論が得られないまま完了扱いにしない（再実行・時間窓調整・Observability UI のリンクでの裏取りを試す）。
+
+## 推奨調査の流れ（指示がある場合の参考）
+
+1. アラート / エラー率（O11y）→ サービス・エンドポイント特定（**対象 `service.version` を宣言**）。
 2. 失敗トレース（O11y）で例外種別・スタックの当たりを付ける。
 3. **Splunk** で `KeyError`・スタック・`trace_id` 相関。**整数金額パターンの裏付けはログを主**とする（load-generator の `is_integer` / `status_code`、payment の JSON `amount`）。  
    意図的に **`payment.amount` はスパン属性に載せずログのみ**のため、トレースだけでは金額条件に気づきにくい。
 
-## Git / デモ後
+## 観客向けの説明（デモ演出）
 
-- デモ終了後は `./scripts/demo-reset.sh` で **`main` を `origin/demo/v1.0-base` に合わせる**。
-- その後 **GitHub で `feature/payment-decimal-discount` → `main` の PR を再作成**する。
-- `fix/payment-division-by-zero` → `main` の PR はデモ中に MCP で作る想定なら **再作成不要**（README 参照）。
-
-## fix ブランチをマージするとき（重要）
-
-- **`feature` を `main` にマージしたあと**、`main` は v1.1 状態に進む。
-- **`fix` の PR が古い `main` をベースにしていると**、`main` を取り込む際に **`payment-service` / `k8s/payment-service/deployment.yaml` でコンフリクト**しうる。
-- 対処: PR 画面で **Update branch**（`main` をマージ）するか、ローカルで **`fix` に `main` をマージ**してから push する。
+- **既存の `fix` ブランチや「リポジトリに修正が既にある」ことを観客に匂わせない**。原因は調査結果として述べ、修正・マージは **「作成・マージされた PR」** の体で扱う（`git show origin/fix/...` で答えを見せない）。
 
 ## 復旧確認チェックリスト（v1.2 デプロイ後）
 
@@ -54,5 +70,10 @@ index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m
 
 ## CI デプロイ時間の目安
 
-- VM 上の `docker build` は **レイヤーキャッシュ**を効かせる設定になっている（`--no-cache` なし）。初回のみフルビルドが長めになりうる。
+- VM 上の `docker build` はビルド設定により時間がかかることがある。
 - O11y Detector のアラートは、デプロイ完了後 **数分のラグ**がありうる。デモ台本に余白を持たせる。
+
+## デモ後（人間・リポジトリ）
+
+- `./scripts/demo-reset.sh` 実行後は **GitHub Actions で Build and Deploy の成功を確認**する（`push -f` で自動起動。再実行は `workflow_dispatch` 可）。
+- その後 **GitHub で `feature/payment-decimal-discount` → `main` の PR を再作成**する。

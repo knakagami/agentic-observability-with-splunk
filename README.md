@@ -20,7 +20,7 @@ order-service (FastAPI) ──calls──> payment-service (FastAPI)
         ├── traces/metrics ──> Splunk Observability Cloud (jp0)
         └── logs ──────────> Splunk Enterprise (HEC)
 
-GitHub Actions: commit → SSH into K3s VM (port 2222) → git pull → docker build → k3s ctr import → kubectl apply → deploy annotation
+GitHub Actions: commit → SSH into K3s VM (port 2222) → git fetch/reset to origin/main → docker build → k3s ctr import → kubectl apply → deploy annotation
 ```
 
 ---

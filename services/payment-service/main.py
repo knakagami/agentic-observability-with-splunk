@@ -1,5 +1,5 @@
 """
-payment-service v1.0
+payment-service v1.1
 """
 import logging
 
@@ -33,6 +33,12 @@ logger = logging.getLogger("payment-service")
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="payment-service")
 
+# Discount rate table keyed by decimal tier (1–9).
+DISCOUNT_RATES = {
+    1: 0.01, 2: 0.02, 3: 0.03, 4: 0.04, 5: 0.05,
+    6: 0.06, 7: 0.07, 8: 0.08, 9: 0.09,
+}
+
 
 class PaymentRequest(BaseModel):
     payment_id: str
@@ -54,15 +60,18 @@ def health():
 def process_payment(payment: PaymentRequest):
     with tracer.start_as_current_span("process_payment") as span:
         span.set_attribute("payment.id", payment.payment_id)
-        span.set_attribute("payment.amount", payment.amount)
 
         logger.info("Processing payment", extra={
             "payment_id": payment.payment_id,
             "amount": payment.amount,
         })
 
+        decimal_part = payment.amount - int(payment.amount)
+        tier_key = round(decimal_part * 10)
+        discount_rate = DISCOUNT_RATES[tier_key]
+
         fee = round(payment.amount * 0.03, 2)
-        total = round(payment.amount + fee, 2)
+        total = round(payment.amount + fee - discount_rate, 2)
 
         span.set_attribute("payment.fee", fee)
         span.set_attribute("payment.total", total)

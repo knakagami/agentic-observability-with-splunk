@@ -5,10 +5,8 @@
 #   ./scripts/demo-reset.sh
 #
 # 前提:
-#   - v1.0-demo-base タグが存在すること
-#     （cleanup PR を main にマージした後、初回のみ以下を実行）
-#     git tag v1.0-demo-base origin/main
-#     git push origin v1.0-demo-base
+#   - リモートにブランチ demo/v1.0-base が存在すること
+#     （README の手順: git push origin main:demo/v1.0-base 等で作成・更新）
 #
 # デモ終了後の手順:
 #   1. ./scripts/demo-reset.sh を実行
@@ -21,14 +19,14 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$REPO_ROOT"
 
-echo "🔄 main を v1.0-demo-base にリセット中..."
+echo "🔄 main を origin/demo/v1.0-base にリセット中..."
 git fetch origin
 git checkout main
-git reset --hard v1.0-demo-base
+git reset --hard origin/demo/v1.0-base
 git push -f origin main
 
 echo ""
-echo "✅ リセット完了: main → v1.0"
+echo "✅ リセット完了: main → v1.0 (demo/v1.0-base と同一コミット)"
 echo ""
 echo "次のステップ:"
 echo "  1. GitHub Actions で「Build and Deploy」が起動していることを確認し、成功まで待つ"

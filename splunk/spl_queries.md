@@ -3,151 +3,84 @@
 These queries are used during the agentic demo when Claude searches for the root cause
 of the payment-service error spike via the Splunk MCP.
 
----
+**環境に合わせる:** インデックスは **`index=agentic-o11y-demo`**、デプロイは **`deployment.environment=agentic-o11y`**。時間窓はデモでは **5〜15 分**（例 `earliest=-10m`）を推奨。
 
-## 本番デモ用（コピペ）— `agentic-o11y-demo`・10 分窓
-
-実デモ環境では **`index=agentic-o11y-demo`** と **`deployment.environment=agentic-o11y`** を使う。Splunk MCP ではデフォルト **`earliest=-10m`** を推奨（長窓は避ける）。
-
-**サービス絞り込み（sourcetype OR）:**
+**ベース絞り込み（コピー用）:**
 
 ```spl
 index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m
 (sourcetype=kube:container:payment-service OR sourcetype=kube:container:order-service OR sourcetype=kube:container:load-generator)
 ```
 
-**代替（namespace 相当）:**
-
-```spl
-index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m source=*agentic-o11y-mcp*
-```
-
-**payment-service — KeyError の時系列（回復確認の副）:**
-
-```spl
-index=agentic-o11y-demo deployment.environment=agentic-o11y sourcetype=kube:container:payment-service earliest=-10m
-| search *KeyError* OR *tier_key*
-| timechart span=1m count
-```
-
-**load-generator — `is_integer` × `status_code`（502 と整数金額の相関）:**
-
-```spl
-index=agentic-o11y-demo deployment.environment=agentic-o11y sourcetype=kube:container:load-generator earliest=-10m
-"Request sent"
-| stats count BY is_integer, status_code
-| sort is_integer, status_code
-```
-
-**payment-service — ログ上の `amount` で整数のみエラー（Ah-Ha、ログ主）:**
-
-```spl
-index=agentic-o11y-demo deployment.environment=agentic-o11y sourcetype=kube:container:payment-service earliest=-10m
-| eval amount_is_integer=if(isnotnull(amount) AND round(amount,0)==amount, "integer", "decimal")
-| stats count AS total, sum(eval(if(level="ERROR",1,0))) AS errors BY amount_is_integer
-| eval error_rate=round(if(total>0, errors/total*100, 0), 1)
-| table amount_is_integer, total, errors, error_rate
-```
-
-以下のセクションは **汎用プレースホルダ**（`index=demo_logs` 等）のまま残している。本番デモでは上記のインデックス・sourcetype に読み替える。
-
 ---
 
-## 1. エラーログの確認 — 直近5分のエラー件数
+## 1. KeyError の件数・生ログ
 
 ```spl
-index=demo_logs sourcetype="demo:app"
-  level=ERROR
-  earliest=-5m
-| stats count BY service.name, message
-| sort -count
+index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m
+sourcetype=kube:container:payment-service KeyError
+| stats count
 ```
 
 ---
 
-## 2. スタックトレース抽出 — KeyError の発見
+## 2. payment の処理ログ（amount・trace_id）
 
 ```spl
-index=demo_logs sourcetype="demo:app"
-  level=ERROR
-  earliest=-15m
-| search message="*KeyError*" OR message="*DISCOUNT_RATES*" OR message="*tier_key*"
-| table _time, trace_id, span_id, service.name, message
-| sort -_time
+index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m
+sourcetype=kube:container:payment-service "Processing payment"
+| head 50
 ```
+
+（`_raw` が JSON の場合は `spath` や `rex` で `amount` / `trace_id` を取り出すことも可）
 
 ---
 
 ## 3. trace_id によるトレース ↔ ログ相関
 
+O11y のトレース画面から `trace_id` をコピーして `<TRACE_ID>` に貼り付ける。
+
 ```spl
-index=demo_logs sourcetype="demo:app"
-  trace_id=<TRACE_ID_FROM_O11Y>
-| table _time, service.name, level, message, span_id
+index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-15m
+<TRACE_ID>
+| table _time, sourcetype, _raw
 | sort _time
 ```
 
 ---
 
-## 4. 整数金額のみが失敗していることを証明 (Ah-Ha Moment)
+## 4. load-generator: is_integer × status_code（502 の有無）
 
 ```spl
-index=demo_logs sourcetype="demo:app"
-  earliest=-15m
-| eval amount_is_integer=if(round(amount,0)==amount, "integer", "decimal")
-| stats
-    count AS total,
-    sum(eval(if(level="ERROR",1,0))) AS errors
-  BY amount_is_integer
-| eval error_rate=round(errors/total*100, 1)
-| table amount_is_integer, total, errors, error_rate
-```
-
-期待される結果:
-| amount_is_integer | total | errors | error_rate |
-|-------------------|-------|--------|-----------|
-| integer           | ~60   | ~60    | ~100.0    |
-| decimal           | ~40   | 0      | 0.0       |
-
----
-
-## 5. エラー率の時系列 (デプロイ前後の比較)
-
-```spl
-index=demo_logs sourcetype="demo:app"
-  earliest=-30m
-| bin _time span=1m
-| stats
-    count AS total,
-    sum(eval(if(level="ERROR",1,0))) AS errors
-  BY _time, "service.name"
-| eval error_rate_pct=round(errors/total*100, 1)
-| where "service.name"="payment-service"
-| table _time, total, errors, error_rate_pct
+index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-15m
+sourcetype=kube:container:load-generator "Request sent"
+| stats count BY is_integer, status_code
 ```
 
 ---
 
-## 6. 回復確認 — v1.2 デプロイ後のエラー率 0%
+## 5. KeyError の時系列（1 分粒度）
 
 ```spl
-index=demo_logs sourcetype="demo:app"
-  "service.name"=payment-service
-  earliest=-5m
-| stats
-    count AS total,
-    sum(eval(if(level="ERROR",1,0))) AS errors
-  BY "service.name"
-| eval error_rate=round(errors/total*100, 1)
-| table "service.name", total, errors, error_rate
+index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-15m
+sourcetype=kube:container:payment-service KeyError
+| timechart span=1m count
+```
+
+---
+
+## 6. 回復確認 — payment-service の KeyError が近いゼロか
+
+```spl
+index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m
+sourcetype=kube:container:payment-service KeyError
+| stats count
 ```
 
 ---
 
 ## 備考
 
-- `trace_id` フィールドは OTel SDK が自動付与し、JSON ログに埋め込まれる
-- Splunk Observability Cloud のトレース画面の trace_id をコピーして Query 3 に使うと
-  そのトレースに対応するアプリケーションログを即座に確認できる
-- Query 4 は「整数金額のみが失敗」というバグパターンを統計的に証明する
-  デモのクライマックス (Ah-Ha Moment) となるクエリ
+- JSON ログの `trace_id` は Splunk Observability Cloud のトレース ID と相関できる（Query 3）。
+- 旧プレースホルダ `index=demo_logs` / `sourcetype="demo:app"` は本番デモ環境では使わない。
+- 整数金額パターンの詳細は payment の `amount` ログと load-generator の `is_integer` を併用すると説明しやすい。

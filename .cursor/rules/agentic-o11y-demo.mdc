@@ -11,6 +11,16 @@ alwaysApply: false
 - **`feature` / `fix` を `main` に取り込むときは GitHub MCP で PR をマージする**（デモ手順としてローカル `git merge` + `push` は使わない）。
 - `feature` を `main` にマージしたあと、`fix` の PR が古い `main` ベースだとコンフリクトしうる。PR 画面で **Update branch**（`main` を取り込む）してからマージする。
 
+## `main` 以外のブランチへの反映（メンテナンス）
+
+`main` に **共通ファイル**（`README.md`、`.cursor/rules/`、`scripts/`、`splunk/`、`.github/workflows/` など）の変更を入れたら、デモ用ブランチにも取り込む。取り残すと PR や `demo-reset` 後の再開でドキュメントと実装がずれる。
+
+- **`feature/payment-decimal-discount`**: `main` をマージ（またはリベース）して `push`。
+- **`fix/payment-division-by-zero`**: 同様に `main` を取り込み `push`（`feature` マージ後のコンフリクト注意は README の既存節どおり）。
+- **v1.0 ベースライン**（リモートの **`demo/v1.0-base`** ブランチ、または README 手順の **`v1.0-demo-base` タグ**）: `main` が v1.0 のとき、ベースを **`main` の先頭に更新**する（タグなら `git tag -f v1.0-demo-base main` → `push -f origin v1.0-demo-base`、ブランチなら `demo/v1.0-base` に `main` を fast-forward マージして `push`）。
+
+K3s VM の CI は **`git pull` ではなく `fetch` + `reset --hard origin/main`** で同期する（`main` の force-push 後も VM と origin が分岐しないようにする）。
+
 ## 調査の順序・チャネル
 
 - **ユーザーが明示したチャネル**（トレース / ログ / メトリクス）を最優先する。明示がない場合は、必要なら短く確認するか、**狭いデフォルト**（例: O11y でサービス健全性 → 指定があれば Splunk）に留め、README や本ルールを理由に**勝手にログ・クエリの範囲を広げない**。

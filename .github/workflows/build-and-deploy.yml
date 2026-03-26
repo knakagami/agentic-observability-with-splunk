@@ -25,7 +25,11 @@ jobs:
           script: |
             set -e
             cd ~/agentic-observability-with-splunk
-            git pull origin main
+            # pull だと main の force-push 後に VM ローカルと origin が分岐し、
+            # Git 2.27+ の pull 既定変更で「divergent branches」で失敗することがある。
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
 
             echo "=== Building Docker images ==="
             docker build --no-cache -t order-service:latest ./services/order-service

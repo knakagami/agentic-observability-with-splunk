@@ -64,7 +64,7 @@ GitHub Actions: commit → SSH into K3s VM (port 2222) → git fetch/reset to or
 | `K3S_VM_HOST` | K3s VMのIPアドレス |
 | `K3S_VM_USER` | SSHユーザー名 |
 | `K3S_SSH_KEY` | SSH秘密鍵 |
-| `SPLUNK_O11Y_TOKEN` | Splunk Observability Cloudアクセストークン (デプロイイベント送信用) |
+| `SPLUNK_O11Y_TOKEN` | **Splunk Observability Cloud** の組織アクセストークン（ingest 用。ワークフローは `ingest.jp0.signalfx.com` 向け。**HEC トークンや別レルムのトークンでは 401** になります） |
 
 ### 2. K3s VM の初期セットアップ
 

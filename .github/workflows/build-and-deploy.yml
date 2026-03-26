@@ -62,10 +62,15 @@ jobs:
 
       - name: Send deployment event to Splunk Observability Cloud
         if: success()
+        continue-on-error: true
         env:
           SPLUNK_O11Y_TOKEN: ${{ secrets.SPLUNK_O11Y_TOKEN }}
         run: |
           set -euo pipefail
+          if [ -z "${SPLUNK_O11Y_TOKEN}" ]; then
+            echo "::notice::SPLUNK_O11Y_TOKEN is not set; skipping Splunk O11y deployment event."
+            exit 0
+          fi
           # デモでは feature/fix を main にマージするたびに k8s の service.version が 1.0→1.1→1.2 と変わる。
           # このワークフローはトリガーコミットを checkout 済みなので、マニフェストから OTel と同じ版を読む。
           extract_service_version() {
@@ -131,8 +136,17 @@ jobs:
               }
             ]')
 
-          curl -sS -f -X POST "https://ingest.jp0.signalfx.com/v2/event" \
+          # 401 = トークン無効・期限切れ・別レルムのトークン等（ingest URL の jp0 と O11y 組織のレルムが一致しているか確認）
+          RESP=$(curl -sS -w "\n%{http_code}" -X POST "https://ingest.jp0.signalfx.com/v2/event" \
             -H "Content-Type: application/json" \
             -H "X-SF-Token: ${SPLUNK_O11Y_TOKEN}" \
-            -d "${DATA}"
-          echo "Deployment events sent (order-service=${ORDER_VER}, payment-service=${PAYMENT_VER}, ts=${TIMESTAMP})"
+            -d "${DATA}")
+          HTTP_CODE=$(echo "${RESP}" | tail -n1)
+          BODY=$(echo "${RESP}" | sed '$d')
+          if [ "${HTTP_CODE}" = "200" ] || [ "${HTTP_CODE}" = "204" ]; then
+            echo "Deployment events sent (order-service=${ORDER_VER}, payment-service=${PAYMENT_VER}, ts=${TIMESTAMP})"
+            exit 0
+          fi
+          echo "::warning::Splunk O11y ingest failed HTTP ${HTTP_CODE}: ${BODY}"
+          echo "401 のとき: GitHub Secret は Splunk Observability Cloud の組織アクセストークン（API/ingest 用）を設定してください。Splunk Cloud の HEC トークンや別レルム（us0 等）のトークンでは認証できません。"
+          exit 1

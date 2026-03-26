@@ -30,7 +30,7 @@ ITEMS = ["widget", "gadget", "doohickey", "thingamajig", "whatsit"]
 def make_amount() -> float:
     """60% integer amount (whole number), 40% decimal amount."""
     if random.random() < 0.6:
-        return float(random.randint(10, 500))   # integer → triggers ZeroDivisionError in v1.1
+        return float(random.randint(10, 500))   # integer → triggers KeyError: 0 in v1.1 payment-service
     else:
         return round(random.uniform(10.5, 499.9), 2)
 

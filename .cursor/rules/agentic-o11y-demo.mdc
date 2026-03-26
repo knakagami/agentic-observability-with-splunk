@@ -1,0 +1,69 @@
+---
+description: Agentic Observability with Splunk デモ運用（MCP・SPL・O11y・Git）
+globs: splunk/**,services/**,k8s/**,.github/**,README.md,scripts/**
+alwaysApply: false
+---
+
+# Agentic O11y + Splunk デモ — エージェント向けルール
+
+## Git / PR（デモ実演）
+
+- **`feature` / `fix` を `main` に取り込むときは GitHub MCP で PR をマージする**（デモ手順としてローカル `git merge` + `push` は使わない）。
+- `feature` を `main` にマージしたあと、`fix` の PR が古い `main` ベースだとコンフリクトしうる。PR 画面で **Update branch**（`main` を取り込む）してからマージする。
+
+## 調査の順序・チャネル
+
+- **ユーザーが明示したチャネル**（トレース / ログ / メトリクス）を最優先する。明示がない場合は、必要なら短く確認するか、**狭いデフォルト**（例: O11y でサービス健全性 → 指定があれば Splunk）に留め、README や本ルールを理由に**勝手にログ・クエリの範囲を広げない**。
+- 応答で **README やルールの「台本どおり」** といったメタ説明はしない。**指示された作業**に集中して述べる。
+
+## Splunk MCP（ログ）
+
+- 時間窓は **`earliest=-10m`** を既定とし、**5〜15 分程度**に収める（`-24h` や 30 分窓など長窓はデモでは避け、応答とノイズを抑える）。
+- インデックスは実環境に合わせ **`index=agentic-o11y-demo`** を使う（プレースホルダ `demo_logs` は使わない）。
+- デモ用マイクロサービスだけに絞る例:
+
+```spl
+index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m
+(sourcetype=kube:container:payment-service OR sourcetype=kube:container:order-service OR sourcetype=kube:container:load-generator)
+```
+
+- namespace 相当の絞り込み: `source=*agentic-o11y-mcp*` または上記 `sourcetype` の OR。
+
+## Splunk Observability MCP（メトリクス・APM・トレース）
+
+- APM 環境名は **`agentic-o11y`**（`get_apm_environments` で確認可）。
+- **複数 `service.version` が同一時間窓に混在**しうる（短期再演など）。**先に評価スコープを宣言**する: 障害の説明なら **`service.version=1.1`**（など導入直後の版）、回復確認なら **`service.version=1.2`**。混在する他バージョンの件数で**全体平均だけを障害の証拠にしない**。
+- 調査・復旧確認では **対象バージョン**のスパン・エラー内訳を見る（意図しない古い Pod / バージョンと混ぜない）。
+- `service.version` は主に **OTel リソース属性（メトリクス・トレース）** に乗る。ログに必ず出るとは限らないため、バージョン別の健全性は **O11y 側を主**とする。
+
+## O11y データ取得（ツールが空・異常な場合）
+
+- `get_apm_trace_tool` 等が **空・異常**なら、**別パラメータや時間窓で再試行**する。それでも主要データが得られない場合は **exemplar トレース**、**`get_apm_service_errors_and_requests`**、**Splunk で `trace_id` 相関**へ切り替える。
+- **MCP 経由でインサイトが得られた状態**をデモ成功の条件とする。主要な結論が得られないまま完了扱いにしない（再実行・時間窓調整・Observability UI のリンクでの裏取りを試す）。
+
+## 推奨調査の流れ（指示がある場合の参考）
+
+1. アラート / エラー率（O11y）→ サービス・エンドポイント特定（**対象 `service.version` を宣言**）。
+2. 失敗トレース（O11y）で例外種別・スタックの当たりを付ける。
+3. **Splunk** で `KeyError`・スタック・`trace_id` 相関。**整数金額パターンの裏付けはログを主**とする（load-generator の `is_integer` / `status_code`、payment の JSON `amount`）。  
+   意図的に **`payment.amount` はスパン属性に載せずログのみ**のため、トレースだけでは金額条件に気づきにくい。
+
+## 観客向けの説明（デモ演出）
+
+- **既存の `fix` ブランチや「リポジトリに修正が既にある」ことを観客に匂わせない**。原因は調査結果として述べ、修正・マージは **「作成・マージされた PR」** の体で扱う（`git show origin/fix/...` で答えを見せない）。
+
+## 復旧確認チェックリスト（v1.2 デプロイ後）
+
+- **O11y**: `service.version=1.2`（または新 Pod）での **payment-service エラー率**が落ち着いているか。
+- **Splunk**: `payment-service` で **`KeyError` が直近 10 分で 0 件**に近いか（`timechart span=1m` 推奨）。
+- **任意**: load-generator の `Request sent` で `is_integer` × `status_code`（502 が消えているか）。
+
+## CI デプロイ時間の目安
+
+- VM 上の `docker build` はビルド設定により時間がかかることがある。
+- O11y Detector のアラートは、デプロイ完了後 **数分のラグ**がありうる。デモ台本に余白を持たせる。
+
+## デモ後（人間・リポジトリ）
+
+- `./scripts/demo-reset.sh` 実行後は **GitHub Actions で Build and Deploy の成功を確認**する（`push -f` で自動起動。再実行は `workflow_dispatch` 可）。
+- その後 **GitHub で `feature/payment-decimal-discount` → `main` の PR を再作成**する。

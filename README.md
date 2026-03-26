@@ -47,6 +47,7 @@ GitHub Actions: commit → SSH into K3s VM (port 2222) → git pull → docker b
 │   ├── order-service/
 │   ├── payment-service/
 │   └── load-generator/
+├── .cursor/rules/                           # Cursor デモ運用ルール（MCP・SPL）
 ├── detector/create_detector.py              # Splunk O11y Detector作成スクリプト
 ├── splunk/spl_queries.md                    # デモ中にClaudeが使うSPLクエリ集
 └── mcp-settings-template.json              # ~/.claude/settings.json template
@@ -105,6 +106,13 @@ python detector/create_detector.py
 
 ---
 
+## エージェント・ファシリテーター運用（デモ実演時）
+
+- **`feature` / `fix` を `main` に取り込む操作は GitHub MCP で PR をマージする**（デモ手順としてローカルでの `git merge` + `push` は使わない）。
+- **ファシリテーター向け:** 調査を依頼するときはチャネルを明示する（例: 「Splunk Observability Cloud でトレースを確認して」「Splunk Enterprise のログで KeyError を探して」）。エージェントが README やルールを理由に調査範囲を勝手に広げないようにする。
+
+---
+
 ## デモ用ブランチ構成
 
 バージョン管理はブランチで行います。各バージョンの差分は対応するブランチの PR で確認できます。
@@ -157,10 +165,11 @@ Load Generatorは60%の確率で整数金額を送るため、エラー率が約
 ./scripts/demo-reset.sh
 ```
 
-スクリプトは `main` を `v1.0-demo-base` タグに force reset します。
+スクリプトは `main` を `v1.0-demo-base` タグに force reset し、**`git push -f origin main` します**。`main` への push のため **[Build and Deploy](.github/workflows/build-and-deploy.yml)** ワークフローが自動で起動し、K3s VM へ v1.0 の再デプロイが走ります。**GitHub Actions でワークフローが成功したこととロールアウト完了を確認**してください。失敗時や再実行が必要な場合は、同ワークフローの **workflow_dispatch**（手動実行）も利用できます。
+
 その後、GitHub で `feature/payment-decimal-discount` → `main` の PR を再作成してください。
 
-> **注:** `fix/payment-division-by-zero` → `main` の PR は Claude がデモ中に作成するため、再作成不要です。
+> **注:** `fix/payment-division-by-zero` → `main` の PR はデモ中に GitHub MCP でマージする想定のため、再作成不要です。
 
 ---
 

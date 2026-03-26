@@ -32,8 +32,9 @@ jobs:
             git reset --hard origin/main
 
             echo "=== Building Docker images ==="
-            docker build --no-cache -t order-service:latest ./services/order-service
-            docker build --no-cache -t payment-service:latest ./services/payment-service
+            # レイヤーキャッシュを効かせる（--no-cache は毎回フルビルドになり遅い）
+            docker build -t order-service:latest ./services/order-service
+            docker build -t payment-service:latest ./services/payment-service
             # load-generator uses the same image as order-service
             docker tag order-service:latest load-generator:latest
 

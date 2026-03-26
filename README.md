@@ -30,6 +30,7 @@ GitHub Actions: commit → SSH into K3s VM (port 2222) → git pull → docker b
 ```
 .
 ├── .github/workflows/build-and-deploy.yml   # CI/CD: SSH deploy to K3s
+├── .cursor/rules/                           # Cursor デモ運用ルール（MCP・SPL）
 ├── scripts/
 │   └── demo-reset.sh                        # デモ後リセットスクリプト
 ├── services/
@@ -82,15 +83,19 @@ sudo kubectl create namespace agentic-o11y-mcp
 git push origin main  # → GitHub Actions が自動実行
 ```
 
-### 4. デモ用タグの作成（初回のみ・クリーンアップPR マージ後に実行）
+### 4. デモ用ベースライン `demo/v1.0-base`（初回のみ・クリーンアップPR マージ後に実行）
+
+`main` が v1.0 のとき、**リモートに固定用ブランチ**を切っておくと、`demo-reset.sh` が常に同じコミットへ戻せます。
 
 ```bash
 git fetch origin
-git tag v1.0-demo-base origin/main
-git push origin v1.0-demo-base
+git checkout main
+git pull origin main
+git checkout -B demo/v1.0-base
+git push -u origin demo/v1.0-base
 ```
 
-> `demo-reset.sh` はこのタグを基点として `main` をリセットします。
+> **レガシー:** 以前は `v1.0-demo-base` タグを使っていました。タグ運用のままなら `demo-reset.sh` 内の参照をタグに合わせてください。現在の手順は **`origin/demo/v1.0-base` ブランチ**です。
 
 ### 5. Detector 作成
 
@@ -99,7 +104,7 @@ export SPLUNK_O11Y_TOKEN=<your-token>
 python detector/create_detector.py
 ```
 
-### 6. MCP設定
+### 6. MCP 設定
 
 `mcp-settings-template.json` を参考に `~/.claude/settings.json` にMCPサーバー設定を追加してください。
 
@@ -139,6 +144,8 @@ discount_rate = DISCOUNT_RATES[tier_key]             # → KeyError: 0 !
 
 Load Generatorは60%の確率で整数金額を送るため、エラー率が約60%に急上昇します。
 
+**テレメトリ（デモ用）:** 金額は **JSON ログの `amount` にのみ**出し、トレースの `process_payment` スパンには **`payment.amount` を載せない**実装にしているため、原因の「整数金額」パターンは Splunk（ログ）側の裏付けが主になる。
+
 ### デモフロー (10〜15分)
 
 1. main が v1.0 の状態であることを確認
@@ -157,10 +164,26 @@ Load Generatorは60%の確率で整数金額を送るため、エラー率が約
 ./scripts/demo-reset.sh
 ```
 
-スクリプトは `main` を `v1.0-demo-base` タグに force reset します。
+スクリプトは `main` を **`origin/demo/v1.0-base` ブランチ**が指すコミットに `reset --hard` し、`git push -f origin main` します。
 その後、GitHub で `feature/payment-decimal-discount` → `main` の PR を再作成してください。
 
 > **注:** `fix/payment-division-by-zero` → `main` の PR は Claude がデモ中に作成するため、再作成不要です。
+
+---
+
+## トラブルシュート
+
+### fix PR が `main` を取り込むとコンフリクトする
+
+**原因の例:** `feature/payment-decimal-discount` を `main` にマージした**あと**も、`fix/payment-division-by-zero` のブランチが**古い `main`（feature マージ前）をベース**にしたままだと、GitHub の「Update branch」で `main` を取り込む際に `payment-service` や `k8s/payment-service/deployment.yaml` でコンフリクトすることがあります（v1.1 の割引コード・`service.version=1.1` と、fix 側の v1.2・`0: 0.0` などが同時に変わるため）。
+
+**対処:** `feature` を `main` にマージした**あと**、fix ブランチで **`main` をマージ**するか、PR 画面で **Update branch** してからマージする。
+
+### CI デプロイが長い
+
+VM 上の `docker build` は **`--no-cache` を付けない**設定にしており、変更のないレイヤーはキャッシュが効きます。初回ビルドや `requirements.txt` 変更後はフルビルドに近くなり時間がかかります。
+
+**将来のオプション（インフラ変更大）:** ビルドを GitHub Actions ランナーで行い `docker/build-push-action` とキャッシュを使い、成果物だけ VM に転送する方式。
 
 ---
 

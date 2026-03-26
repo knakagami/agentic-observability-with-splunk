@@ -68,29 +68,74 @@ jobs:
         env:
           SPLUNK_O11Y_TOKEN: ${{ secrets.SPLUNK_O11Y_TOKEN }}
         run: |
-          DEPLOY_TIME=$(date +%s%3N)
-          COMMIT_SHA="${{ github.sha }}"
-          SHORT_SHA="${COMMIT_SHA:0:7}"
-          REF_NAME="${{ github.ref_name }}"
+          set -euo pipefail
+          # デモでは feature/fix を main にマージするたびに k8s の service.version が 1.0→1.1→1.2 と変わる。
+          # このワークフローはトリガーコミットを checkout 済みなので、マニフェストから OTel と同じ版を読む。
+          extract_service_version() {
+            sed -n 's/.*service\.version=\([0-9.]*\).*/\1/p' "$1" | head -1
+          }
+          ORDER_VER=$(extract_service_version k8s/order-service/deployment.yaml)
+          PAYMENT_VER=$(extract_service_version k8s/payment-service/deployment.yaml)
+          if [ -z "${ORDER_VER}" ] || [ -z "${PAYMENT_VER}" ]; then
+            echo "Could not parse service.version from k8s/*/deployment.yaml"
+            exit 1
+          fi
 
-          curl -s -X POST "https://ingest.jp0.signalfx.com/v2/event" \
+          TIMESTAMP=$(($(date +%s) * 1000))
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          DEPLOY_ENV="agentic-o11y"
+
+          DATA=$(jq -n \
+            --argjson ts "${TIMESTAMP}" \
+            --arg commit "${GITHUB_SHA}" \
+            --arg short "${SHORT_SHA}" \
+            --arg ref "${GITHUB_REF_NAME}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            --arg actor "${GITHUB_ACTOR}" \
+            --arg order_ver "${ORDER_VER}" \
+            --arg payment_ver "${PAYMENT_VER}" \
+            --arg deploy_env "${DEPLOY_ENV}" \
+            '[
+              {
+                "category": "DEPLOYMENT",
+                "eventType": "deployment",
+                "dimensions": {
+                  "service.name": "order-service",
+                  "service.version": $order_ver,
+                  "deployment.environment": $deploy_env,
+                  "environment": $deploy_env
+                },
+                "properties": {
+                  "description": ("Deploy " + $short + " to " + $deploy_env + " (" + $ref + ")"),
+                  "sha": $commit,
+                  "branch": $ref,
+                  "runId": $run_id,
+                  "actor": $actor
+                },
+                "timestamp": $ts
+              },
+              {
+                "category": "DEPLOYMENT",
+                "eventType": "deployment",
+                "dimensions": {
+                  "service.name": "payment-service",
+                  "service.version": $payment_ver,
+                  "deployment.environment": $deploy_env,
+                  "environment": $deploy_env
+                },
+                "properties": {
+                  "description": ("Deploy " + $short + " to " + $deploy_env + " (" + $ref + ")"),
+                  "sha": $commit,
+                  "branch": $ref,
+                  "runId": $run_id,
+                  "actor": $actor
+                },
+                "timestamp": $ts
+              }
+            ]')
+
+          curl -sS -f -X POST "https://ingest.jp0.signalfx.com/v2/event" \
             -H "Content-Type: application/json" \
             -H "X-SF-Token: ${SPLUNK_O11Y_TOKEN}" \
-            -d "[{
-              \"category\": \"DEPLOYMENT\",
-              \"eventType\": \"deployment\",
-              \"dimensions\": {
-                \"service\": \"payment-service\",
-                \"environment\": \"agentic-o11y\",
-                \"deployment.environment\": \"agentic-o11y\"
-              },
-              \"properties\": {
-                \"description\": \"Deploy ${SHORT_SHA} to agentic-o11y (${REF_NAME})\",
-                \"sha\": \"${COMMIT_SHA}\",
-                \"branch\": \"${REF_NAME}\",
-                \"runId\": \"${{ github.run_id }}\",
-                \"actor\": \"${{ github.actor }}\"
-              },
-              \"timestamp\": ${DEPLOY_TIME}
-            }]"
-          echo "Deployment event sent to Splunk O11y (timestamp: ${DEPLOY_TIME})"
+            -d "${DATA}"
+          echo "Deployment events sent (order-service=${ORDER_VER}, payment-service=${PAYMENT_VER}, ts=${TIMESTAMP})"

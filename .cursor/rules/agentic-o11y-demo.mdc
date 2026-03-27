@@ -8,16 +8,16 @@ alwaysApply: false
 
 ## Git / PR（デモ実演）
 
-- **`feature` / `fix` を `main` に取り込むときは GitHub MCP で PR をマージする**（デモ手順としてローカル `git merge` + `push` は使わない）。
+- **`feature` / `fix` を `main` に取り込むときは GitHub MCP で PR をマージする**（ローカルでの `git merge` + `push` は使わない）。
 - `feature` を `main` にマージしたあと、`fix` の PR が古い `main` ベースだとコンフリクトしうる。PR 画面で **Update branch**（`main` を取り込む）してからマージする。
 
 ## `main` 以外のブランチへの反映（メンテナンス）
 
 `main` に **共通ファイル**（`README.md`、`.cursor/rules/`、`scripts/`、`splunk/`、`.github/workflows/` など）の変更を入れたら、デモ用ブランチにも取り込む。取り残すと PR や `demo-reset` 後の再開でドキュメントと実装がずれる。
 
-- **`feature/payment-decimal-discount`**: `main` をマージ（またはリベース）して `push`。
-- **`fix/payment-division-by-zero`**: 同様に `main` を取り込み `push`（`feature` マージ後のコンフリクト注意は README の既存節どおり）。
-- **v1.0 ベースライン**（リモートの **`demo/v1.0-base`** ブランチ、または README 手順の **`v1.0-demo-base` タグ**）: `main` が v1.0 のとき、ベースを **`main` の先頭に更新**する（タグなら `git tag -f v1.0-demo-base main` → `push -f origin v1.0-demo-base`、ブランチなら `demo/v1.0-base` に `main` を fast-forward マージして `push`）。
+- **`feature/payment-decimal-discount`**: `main` をマージ（またはリベース）して `push`。手早く **`origin/demo/v1.0-base` を取り込む**だけなら `scripts/refresh-demo-branches.sh` のドライラン／`--apply` を参照。
+- **`fix/payment-division-by-zero`**: 同様に `main` または `demo/v1.0-base` を取り込み `push`（`feature` マージ後のコンフリクト注意は README のメンテ節どおり）。
+- **v1.0 ベースライン**（リモートの **`demo/v1.0-base`** ブランチが正）: `main` が v1.0 のとき、**`demo/v1.0-base` を `main` の先頭に fast-forward** して `push` し、リセット／次回デモの基点と一致させる。
 
 K3s VM の CI は **`git pull` ではなく `fetch` + `reset --hard origin/main`** で同期する（`main` の force-push 後も VM と origin が分岐しないようにする）。
 
@@ -25,6 +25,11 @@ K3s VM の CI は **`git pull` ではなく `fetch` + `reset --hard origin/main`
 
 - **ユーザーが明示したチャネル**（トレース / ログ / メトリクス）を最優先する。明示がない場合は、必要なら短く確認するか、**狭いデフォルト**（例: O11y でサービス健全性 → 指定があれば Splunk）に留め、README や本ルールを理由に**勝手にログ・クエリの範囲を広げない**。
 - 応答で **README やルールの「台本どおり」** といったメタ説明はしない。**指示された作業**に集中して述べる。
+
+## ユーザー向け応答（ファシリテーター）
+
+- **ファシリテーターへの返答**でも、「デモ手順通り」「README のシナリオ通り」「事前に決めた流れ」「リハーサル済み」など、**手順や文書があらかじめ固定されていることを示唆する表現は使わない**。
+- 技術的な事実（例: `service.version` ごとのエラー傾向、アラート／Detector の内容、SPL やトレースの結果）は **そのまま述べてよい**。
 
 ## Splunk MCP（ログ）
 
@@ -58,9 +63,11 @@ index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m
 3. **Splunk** で `KeyError`・スタック・`trace_id` 相関。**整数金額パターンの裏付けはログを主**とする（load-generator の `is_integer` / `status_code`、payment の JSON `amount`）。  
    意図的に **`payment.amount` はスパン属性に載せずログのみ**のため、トレースだけでは金額条件に気づきにくい。
 
-## 観客向けの説明（デモ演出）
+## 観客向けの説明（デモ演出・潜在顧客向け）
 
-- **既存の `fix` ブランチや「リポジトリに修正が既にある」ことを観客に匂わせない**。原因は調査結果として述べ、修正・マージは **「作成・マージされた PR」** の体で扱う（`git show origin/fix/...` で答えを見せない）。
+- **潜在顧客・観客に対しては、デモの「事前準備」「台本」「リハーサル済み」を匂わせない。** 例: 「準備が整っている」「開いておいた PR がある」「feature/fix ブランチがもうある」「次はマージするだけ」などは言わない。
+- **既存の `fix` ブランチや「リポジトリに修正が既にある」ことを観客に匂わせない。** 原因は調査結果として述べ、修正・マージは **「特定した原因に対する変更を PR として出し、マージした」** の体で扱う（`git show origin/fix/...` で答えを見せない）。
+- ファシリテーターとの **内部メンテ用**の指示（ブランチ名、PR 番号、`demo-reset` など）は、顧客向けの説明文・スクリプトにそのまま流用しない。顧客向けには観測・判断・対応の流れだけを語る。
 
 ## 復旧確認チェックリスト（v1.2 デプロイ後）
 
@@ -71,7 +78,7 @@ index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m
 ## CI デプロイ時間の目安
 
 - VM 上の `docker build` はビルド設定により時間がかかることがある。
-- O11y Detector のアラートは、デプロイ完了後 **数分のラグ**がありうる。デモ台本に余白を持たせる。
+- O11y Detector のアラートは、デプロイ完了後 **数分のラグ**がありうる。待ち時間を見込む。
 
 ## デモ後（人間・リポジトリ）
 

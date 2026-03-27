@@ -24,7 +24,7 @@ spec:
             - name: ORDER_SERVICE_URL
               value: "http://order-service:8000"
             - name: REQUEST_INTERVAL_SECONDS
-              value: "0.5"
+              value: "0.2"
             - name: LOADGEN_MAX_RETRIES
               value: "3"
           resources:

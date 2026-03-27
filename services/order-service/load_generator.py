@@ -5,7 +5,7 @@ Sends continuous order requests to order-service.
 
 Env:
   ORDER_SERVICE_URL — default http://order-service:8000
-  REQUEST_INTERVAL_SECONDS — pause between requests (default 0.5; lower = more RPS)
+  REQUEST_INTERVAL_SECONDS — pause between requests (default 0.2; lower = more RPS)
   LOADGEN_MAX_RETRIES — POST retries for transient network errors (default 3)
 """
 import os
@@ -27,7 +27,7 @@ logging.root.setLevel(logging.INFO)
 logger = logging.getLogger("load-generator")
 
 ORDER_SERVICE_URL = os.getenv("ORDER_SERVICE_URL", "http://order-service:8000")
-REQUEST_INTERVAL = float(os.getenv("REQUEST_INTERVAL_SECONDS", "0.5"))
+REQUEST_INTERVAL = float(os.getenv("REQUEST_INTERVAL_SECONDS", "0.2"))
 MAX_RETRIES = int(os.getenv("LOADGEN_MAX_RETRIES", "3"))
 
 ITEMS = ["widget", "gadget", "doohickey", "thingamajig", "whatsit"]

@@ -54,7 +54,7 @@ index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-10m
 ## O11y データ取得（ツールが空・異常な場合）
 
 - `get_apm_trace_tool` 等が **空・異常**なら、**別パラメータや時間窓で再試行**する。それでも主要データが得られない場合は **exemplar トレース**、**`get_apm_service_errors_and_requests`**、**Splunk で `trace_id` 相関**へ切り替える。
-- **MCP 経由でインサイトが得られた状態**をデモ成功の条件とする。主要な結論が得られないまま完了扱いにしない（再実行・時間窓調整・Observability UI のリンクでの裏取りを試す）。
+- **MCP 経由でインサイトが得られた状態**を調査完了の条件とする。主要な結論が得られないまま完了扱いにしない（再実行・時間窓調整・Observability UI のリンクでの裏取りを試す）。
 
 ## 推奨調査の流れ（指示がある場合の参考）
 

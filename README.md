@@ -160,7 +160,7 @@ tier_key = round(decimal_part * 10)                  # → 0
 discount_rate = DISCOUNT_RATES[tier_key]             # → KeyError: 0 !
 ```
 
-Load Generator は 60% の確率で整数金額を送るため、**v1.1 の POST /pay について**エラー率が約 60% に急上昇します（小数リクエストは成功しうる）。リクエスト間隔は環境変数 `REQUEST_INTERVAL_SECONDS`（既定 0.5 秒）で変えられるため **絶対 RPS は変わるが、整数／小数の比率は同じ**です。
+Load Generator は 60% の確率で整数金額を送るため、**v1.1 の POST /pay について**エラー率が約 60% に急上昇します（小数リクエストは成功しうる）。リクエスト間隔は環境変数 `REQUEST_INTERVAL_SECONDS`（既定 0.2 秒）で変えられるため **絶対 RPS は変わるが、整数／小数の比率は同じ**です。
 
 ### デモフロー (10〜15分)
 

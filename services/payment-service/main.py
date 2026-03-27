@@ -68,7 +68,11 @@ def process_payment(payment: PaymentRequest):
 
         decimal_part = payment.amount - int(payment.amount)
         tier_key = round(decimal_part * 10)
-        discount_rate = DISCOUNT_RATES[tier_key]
+        # Demo: tier_key 0 stays a hard lookup → KeyError: 0. Out-of-range (e.g. 10) → no discount.
+        if tier_key == 0:
+            discount_rate = DISCOUNT_RATES[tier_key]
+        else:
+            discount_rate = DISCOUNT_RATES.get(tier_key, 0.0)
 
         fee = round(payment.amount * 0.03, 2)
         total = round(payment.amount + fee - discount_rate, 2)

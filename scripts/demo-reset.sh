@@ -6,11 +6,13 @@
 #
 # 前提:
 #   - リモートにブランチ demo/v1.0-base が存在すること
-#     （README の手順: git push origin main:demo/v1.0-base 等で作成・更新）
+#     （README の手順: main が v1.0 のときに git push origin main:demo/v1.0-base 等で作成・更新）
 #
 # デモ終了後の手順:
 #   1. ./scripts/demo-reset.sh を実行
-#   2. GitHub で feature/payment-decimal-discount → main の PR を再作成
+#   2. GitHub Actions の成功を確認
+#   3. GitHub で feature/payment-decimal-discount → main の PR を再作成
+#   4. （推奨）scripts/refresh-demo-branches.sh で feature/fix を基点から再整列
 
 set -e
 
@@ -32,7 +34,7 @@ echo "次のステップ:"
 echo "  1. GitHub Actions で「Build and Deploy」が起動していることを確認し、成功まで待つ"
 echo "     （push -f で main が更新されたため自動起動。再実行は workflow_dispatch でも可）"
 echo ""
-echo "次のデモに向けて、以下の PR を GitHub で再作成してください:"
-echo "  feature/payment-decimal-discount → main  (v1.1 バグ導入 PR)"
-echo ""
-echo "  fix/payment-division-by-zero はデモ中に GitHub MCP でマージする想定です"
+echo "次のデモに向けて:"
+echo "  - GitHub で feature/payment-decimal-discount → main の PR を再作成（v1.1 導入）"
+echo "  - fix/payment-division-by-zero は reset 後も古い履歴を指しうるため、"
+echo "    ./scripts/refresh-demo-branches.sh で再整列するか README のメンテ手順に従う"

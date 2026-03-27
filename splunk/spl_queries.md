@@ -79,6 +79,18 @@ sourcetype=kube:container:payment-service KeyError
 
 ---
 
+## 7. load-generator: クライアント失敗（KeyError 以外）
+
+`Request failed` ログには `error_class`・`retry_count` が付く（接続・タイムアウト等の切り分け用）。
+
+```spl
+index=agentic-o11y-demo deployment.environment=agentic-o11y earliest=-15m
+sourcetype=kube:container:load-generator "Request failed"
+| stats count BY error_class
+```
+
+---
+
 ## 備考
 
 - JSON ログの `trace_id` は Splunk Observability Cloud のトレース ID と相関できる（Query 3）。

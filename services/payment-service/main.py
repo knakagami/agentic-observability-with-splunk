@@ -35,6 +35,7 @@ app = FastAPI(title="payment-service")
 
 # Discount rate table keyed by decimal tier (0–9).
 # 0: integer amount (no decimal part), 1–9: fractional amounts.
+# tier_key outside 0–9 (e.g. round(0.99*10)==10) → no discount.
 DISCOUNT_RATES = {
     0: 0.0,
     1: 0.01, 2: 0.02, 3: 0.03, 4: 0.04, 5: 0.05,
@@ -70,7 +71,7 @@ def process_payment(payment: PaymentRequest):
 
         decimal_part = payment.amount - int(payment.amount)
         tier_key = round(decimal_part * 10)
-        discount_rate = DISCOUNT_RATES[tier_key]
+        discount_rate = DISCOUNT_RATES.get(tier_key, 0.0)
 
         fee = round(payment.amount * 0.03, 2)
         total = round(payment.amount + fee - discount_rate, 2)

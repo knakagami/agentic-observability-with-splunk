@@ -1,5 +1,5 @@
 """
-payment-service v1.1
+payment-service v1.2
 """
 import logging
 
@@ -33,8 +33,11 @@ logger = logging.getLogger("payment-service")
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="payment-service")
 
-# Discount rate table keyed by decimal tier (1–9).
+# Discount rate table keyed by decimal tier (0–9).
+# 0: integer amount (no decimal part), 1–9: fractional amounts.
+# tier_key outside 0–9 (e.g. round(0.99*10)==10) → no discount.
 DISCOUNT_RATES = {
+    0: 0.0,
     1: 0.01, 2: 0.02, 3: 0.03, 4: 0.04, 5: 0.05,
     6: 0.06, 7: 0.07, 8: 0.08, 9: 0.09,
 }
@@ -68,11 +71,7 @@ def process_payment(payment: PaymentRequest):
 
         decimal_part = payment.amount - int(payment.amount)
         tier_key = round(decimal_part * 10)
-        # Demo: tier_key 0 stays a hard lookup → KeyError: 0. Out-of-range (e.g. 10) → no discount.
-        if tier_key == 0:
-            discount_rate = DISCOUNT_RATES[tier_key]
-        else:
-            discount_rate = DISCOUNT_RATES.get(tier_key, 0.0)
+        discount_rate = DISCOUNT_RATES.get(tier_key, 0.0)
 
         fee = round(payment.amount * 0.03, 2)
         total = round(payment.amount + fee - discount_rate, 2)
